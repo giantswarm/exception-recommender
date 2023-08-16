@@ -1,0 +1,58 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - kyverno.io.giantswarm.io
+  resources:
+  - admissionreports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kyverno.io.giantswarm.io
+  resources:
+  - admissionreports/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - kyverno.io.giantswarm.io
+  resources:
+  - admissionreports/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - kyverno.io.giantswarm.io
+  resources:
+  - backgroundscanreports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kyverno.io.giantswarm.io
+  resources:
+  - backgroundscanreports/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - kyverno.io.giantswarm.io
+  resources:
+  - backgroundscanreports/status
+  verbs:
+  - get
+  - patch
+  - update
