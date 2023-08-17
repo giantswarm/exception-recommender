@@ -13,7 +13,7 @@ resources:
     namespaced: true
   controller: true
   domain: giantswarm.io
-  group: security
+  group: policy
   kind: PolicyExceptionDraft
   path: github.com/giantswarm/exception-recommender/api/v1alpha1
   version: v1alpha1

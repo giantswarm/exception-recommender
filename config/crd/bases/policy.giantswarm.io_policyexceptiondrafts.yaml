@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.12.0
-  name: policyexceptiondrafts.security.giantswarm.io
+  name: policyexceptiondrafts.policy.giantswarm.io
 spec:
-  group: security.giantswarm.io
+  group: policy.giantswarm.io
   names:
     kind: PolicyExceptionDraft
     listKind: PolicyExceptionDraftList
