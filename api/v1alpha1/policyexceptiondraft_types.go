@@ -26,11 +26,6 @@ import (
 
 // PolicyExceptionDraftSpec defines the desired state of PolicyExceptionDraft
 type PolicyExceptionDraftSpec struct {
-	// Background controls if exceptions are applied to existing policies during a background scan.
-	// Optional. Default value is "true". The value must be set to "false" if the policy rule
-	// uses variables that are only available in the admission review request (e.g. user name).
-	Background *bool `json:"background,omitempty" yaml:"background,omitempty"`
-
 	// Match defines match clause used to check if a resource applies to the exception
 	Match kyvernov2beta1.MatchResources `json:"match"`
 
