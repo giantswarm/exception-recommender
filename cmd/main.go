@@ -57,14 +57,18 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
+	var destinationNamespace string
+	var targetWorkloads []string
+	var targetCategories []string
 	failedReports := make(map[string]map[string][]kyverno.PolicyReportResult)
-	destinationNamespace := "giantswarm"
-	targetWorkloads := []string{}
+	// For testing
 	targetWorkloads = append(targetWorkloads, "Deployment")
-	targetCategories := []string{}
+	targetWorkloads = append(targetWorkloads, "DaemonSet")
 	targetCategories = append(targetCategories, "Pod Security Standards (Baseline)")
 	targetCategories = append(targetCategories, "Pod Security Standards (Restricted)")
 	targetCategories = append(targetCategories, "Pod Security Standards")
+	// Flags
+	flag.StringVar(&destinationNamespace, "destination-namespace", "", "The namespace where the PolicyExceptionDrafts will be created.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
