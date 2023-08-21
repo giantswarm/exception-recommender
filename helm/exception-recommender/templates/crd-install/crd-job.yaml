@@ -23,7 +23,6 @@ spec:
       securityContext:
         seccompProfile:
           type: RuntimeDefault
-        readOnlyRootFilesystem: true
         runAsUser: 65534
         runAsGroup: 65534
       tolerations:

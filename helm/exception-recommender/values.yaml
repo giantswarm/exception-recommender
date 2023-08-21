@@ -2,7 +2,7 @@ name: exception-recommender
 serviceType: managed
 
 image:
-  registry: quay.io
+  registry: docker.io
   name: giantswarm/exception-recommender
   pullPolicy: IfNotPresent
 
