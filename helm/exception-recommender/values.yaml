@@ -2,7 +2,7 @@ name: exception-recommender
 serviceType: managed
 
 image:
-  registry: quay.io
+  registry: docker.io
   name: giantswarm/exception-recommender
   pullPolicy: IfNotPresent
 
@@ -13,6 +13,8 @@ psp:
 # We install CRDs through a Job with the helm specific crd folder.
 crds:
   install: true
+  image:
+    tag: "1.27.4"
   resources:
     requests:
       cpu: 100m
@@ -32,6 +34,7 @@ podSecurityContext:
   runAsUser: 1000
   runAsGroup: 1000
   runAsNonRoot: true
+  readOnlyRootFilesystem: true
   seccompProfile:
     type: RuntimeDefault
 
