@@ -21,7 +21,6 @@ import (
 	"fmt"
 	strings "strings"
 
-	giantswarm "github.com/giantswarm/exception-recommender/api/v1alpha1"
 	"github.com/go-logr/logr"
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	policyreport "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
@@ -31,6 +30,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	giantswarm "github.com/giantswarm/exception-recommender/api/v1alpha1"
 )
 
 // PolicyReportReconciler reconciles a PolicyReport object
