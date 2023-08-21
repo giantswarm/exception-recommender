@@ -13,6 +13,8 @@ psp:
 # We install CRDs through a Job with the helm specific crd folder.
 crds:
   install: true
+  image:
+    tag: "1.27.4"
   resources:
     requests:
       cpu: 100m

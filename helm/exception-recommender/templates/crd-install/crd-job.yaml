@@ -21,6 +21,9 @@ spec:
     spec:
       serviceAccountName: {{ include "recommender.crdInstall" . }}
       securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+        readOnlyRootFilesystem: true
         runAsUser: 65534
         runAsGroup: 65534
       tolerations:
@@ -28,7 +31,7 @@ spec:
         effect: NoSchedule
       containers:
       - name: kubectl
-        image: "{{ .Values.image.registry }}/giantswarm/docker-kubectl:latest"
+        image: "{{ .Values.image.registry }}/giantswarm/docker-kubectl:{{ .Values.crds.image.tag | default latest }}"
         command:
         - sh
         - -c
