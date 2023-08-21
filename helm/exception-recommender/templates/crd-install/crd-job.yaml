@@ -41,6 +41,12 @@ spec:
           # piping stderr to stdout means kubectl's errors are surfaced
           # in the pod's logs.
           kubectl apply --server-side -f /data/ 2>&1
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
+          readOnlyRootFilesystem: true
+          runAsUser: 65534
+          runAsGroup: 65534
         volumeMounts:
 {{- range $path, $_ := .Files.Glob "crd/**" }}
         - name: {{ $path | base | trimSuffix ".yaml" }}
