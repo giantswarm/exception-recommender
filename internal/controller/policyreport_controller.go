@@ -102,7 +102,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 							r.FailedReports[policyReport.Namespace][resource.Name] = []policyreport.PolicyReportResult{result}
 							// Also create PolicyExceptionDraft
 							polexDraft := createPolexDraft(result, namespace)
-							log.Log.Info(fmt.Sprintf("Creating PolexDraft: %s/%s/%s ", resource.Namespace, resource.Kind, resource.Name))
+							log.Log.Info(fmt.Sprintf("Creating PolexDraft for %s: %s/%s ", resource.Kind, resource.Namespace, resource.Name))
 							if err := r.Create(ctx, &polexDraft); err != nil {
 								log.Log.Error(err, "unable to create PolicyExceptionDraft")
 							}
@@ -126,7 +126,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 								if err := r.Client.Update(ctx, &polexDraft, &client.UpdateOptions{}); err != nil {
 									r.Log.Error(err, "unable to update PolicyExceptionDraft")
 								}
-								log.Log.Info(fmt.Sprintf("Appending fail result to PolicyExceptionDraft: %s / %s", polexDraft.Namespace, polexDraft.Name))
+								log.Log.Info(fmt.Sprintf("Appending fail result to PolicyExceptionDraft: %s/%s", polexDraft.Namespace, polexDraft.Name))
 							}
 						}
 
@@ -156,7 +156,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 										if err := r.Client.Delete(ctx, &polexDraft, &client.DeleteOptions{}); err != nil {
 											r.Log.Error(err, "unable to update PolicyExceptionDraft")
 										}
-										log.Log.Info(fmt.Sprintf("PolicyExceptionDraft %s / %s deleted because it didn't have any fail results", polexDraft.Namespace, polexDraft.Name))
+										log.Log.Info(fmt.Sprintf("Deleting PolicyExceptionDraft %s/%s because it doesn't have any fail results", polexDraft.Namespace, polexDraft.Name))
 									} else {
 										// Update PolicyExceptionDraft Exceptions
 										polexDraft.Spec.Exceptions = exceptions
@@ -164,7 +164,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 										if err := r.Client.Update(ctx, &polexDraft, &client.UpdateOptions{}); err != nil {
 											r.Log.Error(err, "unable to update PolicyExceptionDraft")
 										}
-										log.Log.Info(fmt.Sprintf("Removing pass result from PolicyExceptionDraft: %s / %s", polexDraft.Namespace, polexDraft.Name))
+										log.Log.Info(fmt.Sprintf("Removing pass result from PolicyExceptionDraft %s/%s", polexDraft.Namespace, polexDraft.Name))
 
 									}
 								}
@@ -201,8 +201,8 @@ func removeResult(result policyreport.PolicyReportResult, array []policyreport.P
 	return array
 }
 
-// Substring function to get a substring from the string
 func Substring(str string, start, end int) string {
+	// Substring function to get a substring from the string
 	return strings.TrimSpace(str[start:end])
 }
 
@@ -253,6 +253,45 @@ func resultIsNotPresent(result policyreport.PolicyReportResult, failedResults []
 		}
 	}
 	return true
+}
+
+func isKind(resourceKind string, targetWorloads []string) bool {
+	// Checks if the resource matches the kind in targetWorkloads
+	for _, kind := range targetWorloads {
+		if resourceKind == kind {
+			return true
+		}
+	}
+	return false
+}
+
+func isPolicyCategory(resultCategory string, targetCategories []string) bool {
+	// Checks if the result category matches the category in targetCategories
+	for _, category := range targetCategories {
+		if resultCategory == category {
+			return true
+		}
+	}
+	return false
+}
+
+func generateExceptionKinds(resourceKind string) []string {
+	// Adds the subresources to the exception list for each Kind
+	var exceptionKinds []string
+	exceptionKinds = append(exceptionKinds, resourceKind)
+	// Append ReplicaSets
+	if resourceKind == "Deployment" {
+		exceptionKinds = append(exceptionKinds, "ReplicaSet")
+		// Append Jobs
+	} else if resourceKind == "CronJob" {
+		exceptionKinds = append(exceptionKinds, "Job")
+	}
+	// Always append Pods except if they are the initial resource Kind
+	if resourceKind != "Pod" {
+		exceptionKinds = append(exceptionKinds, "Pod")
+	}
+
+	return exceptionKinds
 }
 
 // SetupWithManager sets up the controller with the Manager.
