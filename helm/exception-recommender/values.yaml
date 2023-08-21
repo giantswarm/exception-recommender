@@ -1,12 +1,60 @@
 name: exception-recommender
 serviceType: managed
 
-project:
-  branch: "[[ .Branch ]]"
-  commit: "[[ .SHA ]]"
-
 image:
   registry: quay.io
   name: giantswarm/exception-recommender
-  tag: v0.0.1
   pullPolicy: IfNotPresent
+
+# Install PSPs
+psp:
+  enabled: true
+
+# We install CRDs through a Job with the helm specific crd folder.
+crds:
+  install: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
+
+nodeSelector: {}
+tolerations: []
+
+# Additional custom pod labels
+podLabels: {}
+
+# Pod securityContext
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container securityContext
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  privileged: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 220Mi
+  limits:
+    cpu: 100m
+    memory: 220Mi
+
+recommender:
+  # Install PolicyExceptionDrafts on the giantswarm namespace
+  destinationNamespace: "giantswarm"
