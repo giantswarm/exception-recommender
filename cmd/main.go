@@ -22,7 +22,7 @@ import (
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
-	kyverno "github.com/kyverno/kyverno/api/kyverno/v1alpha2"
+	kyverno "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -57,11 +57,18 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
-	targetWorkloads := []string{}
+	var destinationNamespace string
+	var targetWorkloads []string
+	var targetCategories []string
+	failedReports := make(map[string]map[string][]kyverno.PolicyReportResult)
+	// For testing
 	targetWorkloads = append(targetWorkloads, "Deployment")
-	targetCategories := []string{}
+	targetWorkloads = append(targetWorkloads, "DaemonSet")
+	targetCategories = append(targetCategories, "Pod Security Standards (Baseline)")
 	targetCategories = append(targetCategories, "Pod Security Standards (Restricted)")
 	targetCategories = append(targetCategories, "Pod Security Standards")
+	// Flags
+	flag.StringVar(&destinationNamespace, "destination-namespace", "", "The namespace where the PolicyExceptionDrafts will be created.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -99,22 +106,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controller.AdmissionReportReconciler{
-		Client:           mgr.GetClient(),
-		Scheme:           mgr.GetScheme(),
-		TargetWorkloads:  targetWorkloads,
-		TargetCategories: targetCategories,
+	if err = (&controller.PolicyReportReconciler{
+		Client:               mgr.GetClient(),
+		Scheme:               mgr.GetScheme(),
+		TargetWorkloads:      targetWorkloads,
+		TargetCategories:     targetCategories,
+		FailedReports:        failedReports,
+		DestinationNamespace: destinationNamespace,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "AdmissionReport")
-		os.Exit(1)
-	}
-	if err = (&controller.BackgroundScanReportReconciler{
-		Client:           mgr.GetClient(),
-		Scheme:           mgr.GetScheme(),
-		TargetWorkloads:  targetWorkloads,
-		TargetCategories: targetCategories,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "BackgroundScanReport")
+		setupLog.Error(err, "unable to create controller", "controller", "PolicyReport")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

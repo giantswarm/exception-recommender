@@ -4,6 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.12.0
+  labels:
+    app.kubernetes.io/name: "exception-helper"
+    application.giantswarm.io/team: "shield"
   name: policyexceptiondrafts.policy.giantswarm.io
 spec:
   group: policy.giantswarm.io
@@ -12,6 +15,8 @@ spec:
     listKind: PolicyExceptionDraftList
     plural: policyexceptiondrafts
     singular: policyexceptiondraft
+    shortNames:
+      - "polexdraft"
   scope: Namespaced
   versions:
   - name: v1alpha1

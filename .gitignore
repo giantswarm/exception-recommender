@@ -7,7 +7,7 @@
 *.dylib
 bin/*
 Dockerfile.cross
-
+config/rbac/*
 # Test binary, build with `go test -c`
 *.test
 # Test directory
