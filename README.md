@@ -1,15 +1,6 @@
-[Read me after cloning this template (GS staff only)](https://handbook.giantswarm.io/docs/dev-and-releng/app-developer-processes/adding_app_to_appcatalog/)
-
 # exception-recommender chart
 
-Giant Swarm offers a exception-recommender App which can be installed in workload clusters.
-Here we define the exception-recommender chart with its templates and default configuration.
-
-**What is this app?**
-
-**Why did we add it?**
-
-**Who can use it?**
+The `exception-recommender` Helm chart creates PolicyExceptionDrafts that can be used as a base model for Kyverno PolicyExceptions. The Drafts are created from PolicyReports for the "Pod Security Standard" Policy categories. 
 
 ## Installing
 
@@ -26,8 +17,9 @@ There are several ways to install this app onto a workload cluster.
 **This is an example of a values file you could upload using our web interface.**
 
 ```yaml
-# values.yaml
-
+recommender:
+  # Install PolicyExceptionDrafts on the default namespace
+  destinationNamespace: "default"
 ```
 
 See our [full reference on how to configure apps](https://docs.giantswarm.io/getting-started/app-platform/app-configuration/) for more details.
