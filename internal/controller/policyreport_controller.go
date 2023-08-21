@@ -102,9 +102,14 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 							r.FailedReports[policyReport.Namespace][resource.Name] = []policyreport.PolicyReportResult{result}
 							// Also create PolicyExceptionDraft
 							polexDraft := createPolexDraft(result, namespace)
-							log.Log.Info(fmt.Sprintf("Creating PolexDraft for %s: %s/%s ", resource.Kind, resource.Namespace, resource.Name))
+							log.Log.Info(fmt.Sprintf("Creating PolicyExceptionDraft for %s: %s/%s ", resource.Kind, resource.Namespace, resource.Name))
 							if err := r.Create(ctx, &polexDraft); err != nil {
-								log.Log.Error(err, "unable to create PolicyExceptionDraft")
+								if apierrors.IsAlreadyExists(err) {
+									log.Log.Info(fmt.Sprintf("PolicyExceptionDraft %s/%s already exists", resource.Namespace, resource.Name))
+									return ctrl.Result{}, nil
+								} else {
+									log.Log.Error(err, "unable to create PolicyExceptionDraft")
+								}
 							}
 						} else {
 							// It exists, check if we need to update the object
@@ -207,6 +212,7 @@ func Substring(str string, start, end int) string {
 }
 
 func generateExceptions(results []policyreport.PolicyReportResult) []giantswarm.Exception {
+	// Creates the Spec.Exceptions object for PolicyException(Draft) CRD.
 	var exceptions []giantswarm.Exception
 	for _, result := range results {
 		ruleName := result.Rule
