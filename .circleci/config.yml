@@ -15,8 +15,8 @@ workflows:
 
       - architect/push-to-docker:
           context: "architect"
-          name: push-starboard-exporter-to-docker
-          image: "docker.io/giantswarm/starboard-exporter"
+          name: push-exception-recommender-to-docker
+          image: "docker.io/giantswarm/exception-recommender"
           username_envar: "DOCKER_USERNAME"
           password_envar: "DOCKER_PASSWORD"
           requires:
@@ -28,8 +28,8 @@ workflows:
 
       - architect/push-to-docker:
           context: "architect"
-          name: push-starboard-exporter-to-quay
-          image: "quay.io/giantswarm/starboard-exporter"
+          name: push-exception-recommender-to-quay
+          image: "quay.io/giantswarm/exception-recommender"
           username_envar: "QUAY_USERNAME"
           password_envar: "QUAY_PASSWORD"
           requires:
@@ -41,8 +41,8 @@ workflows:
 
       - architect/push-to-docker:
           context: "architect"
-          name: push-starboard-exporter-to-aliyun
-          image: "giantswarm-registry.cn-shanghai.cr.aliyuncs.com/giantswarm/starboard-exporter"
+          name: push-exception-recommender-to-aliyun
+          image: "giantswarm-registry.cn-shanghai.cr.aliyuncs.com/giantswarm/exception-recommender"
           username_envar: "ALIYUN_USERNAME"
           password_envar: "ALIYUN_PASSWORD"
           requires:
