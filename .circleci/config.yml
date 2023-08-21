@@ -15,8 +15,8 @@ workflows:
 
       - architect/push-to-docker:
           context: "architect"
-          name: push-exception-recommender-to-docker
-          image: "docker.io/giantswarm/exception-recommender"
+          name: push-starboard-exporter-to-docker
+          image: "docker.io/giantswarm/starboard-exporter"
           username_envar: "DOCKER_USERNAME"
           password_envar: "DOCKER_PASSWORD"
           requires:
@@ -26,9 +26,35 @@ workflows:
             tags:
               only: /^v.*/
 
+      - architect/push-to-docker:
+          context: "architect"
+          name: push-starboard-exporter-to-quay
+          image: "quay.io/giantswarm/starboard-exporter"
+          username_envar: "QUAY_USERNAME"
+          password_envar: "QUAY_PASSWORD"
+          requires:
+            - go-build
+          # Needed to trigger job also on git tag.
+          filters:
+            tags:
+              only: /^v.*/
+
+      - architect/push-to-docker:
+          context: "architect"
+          name: push-starboard-exporter-to-aliyun
+          image: "giantswarm-registry.cn-shanghai.cr.aliyuncs.com/giantswarm/starboard-exporter"
+          username_envar: "ALIYUN_USERNAME"
+          password_envar: "ALIYUN_PASSWORD"
+          requires:
+            - go-build
+          # Needed to trigger job also on git tag.
+          filters:
+            tags:
+              only: /^v.*/
+
       - architect/push-to-app-catalog:
           context: "architect"
-          # executor: "app-build-suite" # uncomment this if you want automatic metadata generation and helm chart linting
+          executor: "app-build-suite"
           name: "package and push exception-recommender chart"
           app_catalog: "giantswarm-playground-catalog"
           app_catalog_test: "giantswarm-playground-test-catalog"
