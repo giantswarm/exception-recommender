@@ -17,7 +17,6 @@ limitations under the License.
 package v1alpha1
 
 import (
-	kyvernov2beta1 "github.com/kyverno/kyverno/api/kyverno/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -27,7 +26,7 @@ import (
 // PolicyExceptionDraftSpec defines the desired state of PolicyExceptionDraft
 type PolicyExceptionDraftSpec struct {
 	// Match defines match clause used to check if a resource applies to the exception
-	Match kyvernov2beta1.MatchResources `json:"match"`
+	Match ResourceFilter `json:"match"`
 
 	// Exceptions is a list policy/rules to be excluded
 	Exceptions []Exception `json:"exceptions"`
@@ -53,6 +52,13 @@ type Exception struct {
 
 	// RuleNames identifies the rules to which the exception is applied.
 	RuleNames []string `json:"ruleNames"`
+}
+
+// ResourceFilters
+type ResourceFilter struct {
+	Namespaces []string `json:"namespaces"`
+	Names      []string `json:"names"`
+	Kinds      []string `json:"kinds"`
 }
 
 //+kubebuilder:object:root=true
