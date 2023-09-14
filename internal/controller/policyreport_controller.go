@@ -22,7 +22,6 @@ import (
 	strings "strings"
 
 	"github.com/go-logr/logr"
-	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	policyreport "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -237,13 +236,12 @@ func createPolexDraft(result policyreport.PolicyReportResult, destinationNamespa
 		// Set name
 		polexDraft.Name = resource.Name
 
-		// Set Spec.Match.All
-		polexDraft.Spec.Match.All = kyvernov1.ResourceFilters{kyvernov1.ResourceFilter{
-			ResourceDescription: kyvernov1.ResourceDescription{
-				Namespaces: []string{resource.Namespace},
-				Names:      []string{resource.Name + "*"},
-				Kinds:      generateExceptionKinds(resource.Kind),
-			}}}
+		// Set Spec.Match
+		polexDraft.Spec.Match = giantswarm.ResourceFilter{
+			Namespaces: []string{resource.Namespace},
+			Names:      []string{resource.Name + "*"},
+			Kinds:      generateExceptionKinds(resource.Kind),
+		}
 
 		// Set Spec.Exceptions
 		polexDraft.Spec.Exceptions = generateExceptions([]policyreport.PolicyReportResult{result})
