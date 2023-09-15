@@ -1,0 +1,8 @@
+{{- if and .Values.recommender.createNamespace .Values.recommender.destinationNamespace }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.recommender.destinationNamespace }}
+  labels:
+    {{- include "labels.common" . | nindent 4 }}
+{{- end }}

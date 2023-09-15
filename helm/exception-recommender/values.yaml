@@ -60,4 +60,5 @@ resources:
 
 recommender:
   # Install PolicyExceptionDrafts on the giantswarm namespace
-  destinationNamespace: "giantswarm"
+  destinationNamespace: "policy-exceptions"
+  createNamespace: true

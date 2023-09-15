@@ -5,6 +5,14 @@
         "crds": {
             "type": "object",
             "properties": {
+                "image": {
+                    "type": "object",
+                    "properties": {
+                        "tag": {
+                            "type": "string"
+                        }
+                    }
+                },
                 "install": {
                     "type": "boolean"
                 },
@@ -63,6 +71,9 @@
         "podSecurityContext": {
             "type": "object",
             "properties": {
+                "readOnlyRootFilesystem": {
+                    "type": "boolean"
+                },
                 "runAsGroup": {
                     "type": "integer"
                 },
@@ -93,6 +104,9 @@
         "recommender": {
             "type": "object",
             "properties": {
+                "createNamespace": {
+                    "type": "boolean"
+                },
                 "destinationNamespace": {
                     "type": "string"
                 }
