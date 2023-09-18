@@ -206,8 +206,8 @@ func removeResult(result policyreport.PolicyReportResult, array []policyreport.P
 	return array
 }
 
-func Substring(str string, start, end int) string {
-	// Substring function to get a substring from the string
+func substring(str string, start, end int) string {
+	// substring function to get a substring from the string
 	return strings.TrimSpace(str[start:end])
 }
 
@@ -216,8 +216,8 @@ func generateExceptions(results []policyreport.PolicyReportResult) []giantswarm.
 	var exceptions []giantswarm.Exception
 	for _, result := range results {
 		ruleName := result.Rule
-		if Substring(ruleName, 0, 8) == "autogen-" {
-			ruleName = Substring(ruleName, 8, len(ruleName))
+		if substring(ruleName, 0, 8) == "autogen-" {
+			ruleName = substring(ruleName, 8, len(ruleName))
 		}
 		exceptions = append(exceptions, giantswarm.Exception{
 			PolicyName: result.Policy,
