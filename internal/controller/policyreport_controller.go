@@ -278,25 +278,6 @@ func isPolicyCategory(resultCategory string, targetCategories []string) bool {
 	return false
 }
 
-func generateExceptionKinds(resourceKind string) []string {
-	// Adds the subresources to the exception list for each Kind
-	var exceptionKinds []string
-	exceptionKinds = append(exceptionKinds, resourceKind)
-	// Append ReplicaSets
-	if resourceKind == "Deployment" {
-		exceptionKinds = append(exceptionKinds, "ReplicaSet")
-		// Append Jobs
-	} else if resourceKind == "CronJob" {
-		exceptionKinds = append(exceptionKinds, "Job")
-	}
-	// Always append Pods except if they are the initial resource Kind
-	if resourceKind != "Pod" {
-		exceptionKinds = append(exceptionKinds, "Pod")
-	}
-
-	return exceptionKinds
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *PolicyReportReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
