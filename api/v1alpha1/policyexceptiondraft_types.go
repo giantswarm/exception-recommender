@@ -26,7 +26,7 @@ type PolicyExceptionDraftSpec struct {
 	Policies []string `json:"policies"`
 
 	// Exceptions is a list policy/rules to be excluded
-	Targets []Workload `json:"targets"`
+	Targets []Target `json:"targets"`
 }
 
 //+kubebuilder:object:root=true
@@ -41,8 +41,8 @@ type PolicyExceptionDraft struct {
 	Spec PolicyExceptionDraftSpec `json:"spec,omitempty"`
 }
 
-// Workload defines a PolicyException target
-type Workload struct {
+// Target defines a PolicyException target
+type Target struct {
 	Namespaces []string `json:"namespaces"`
 	Names      []string `json:"names"`
 	Kind       string   `json:"kind"`

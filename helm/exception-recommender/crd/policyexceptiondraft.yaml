@@ -46,7 +46,7 @@ spec:
               targets:
                 description: Exceptions is a list policy/rules to be excluded
                 items:
-                  description: Workload defines a PolicyException target
+                  description: Target defines a PolicyException target
                   properties:
                     kind:
                       type: string

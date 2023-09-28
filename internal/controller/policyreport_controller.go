@@ -233,7 +233,7 @@ func createPolexDraft(result policyreport.PolicyReportResult, destinationNamespa
 		polexDraft.Name = resource.Name
 
 		// Set Spec.Targets
-		polexDraft.Spec.Targets = []giantswarm.Workload{
+		polexDraft.Spec.Targets = []giantswarm.Target{
 			{
 				Namespaces: []string{resource.Namespace},
 				Names:      []string{resource.Name + "*"},
