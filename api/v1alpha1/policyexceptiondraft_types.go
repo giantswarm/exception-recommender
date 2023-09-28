@@ -41,7 +41,7 @@ type PolicyExceptionDraft struct {
 	Spec PolicyExceptionDraftSpec `json:"spec,omitempty"`
 }
 
-// Target defines a PolicyException target
+// Target defines a resource to which a PolicyException applies
 type Target struct {
 	Namespaces []string `json:"namespaces"`
 	Names      []string `json:"names"`

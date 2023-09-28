@@ -46,7 +46,8 @@ spec:
               targets:
                 description: Exceptions is a list policy/rules to be excluded
                 items:
-                  description: Target defines a PolicyException target
+                  description: Target defines a resource to which a PolicyException
+                    applies
                   properties:
                     kind:
                       type: string
