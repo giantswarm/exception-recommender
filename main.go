@@ -64,6 +64,7 @@ func main() {
 	// For testing
 	targetWorkloads = append(targetWorkloads, "Deployment")
 	targetWorkloads = append(targetWorkloads, "DaemonSet")
+	targetWorkloads = append(targetWorkloads, "CronJob")
 	targetCategories = append(targetCategories, "Pod Security Standards (Baseline)")
 	targetCategories = append(targetCategories, "Pod Security Standards (Restricted)")
 	targetCategories = append(targetCategories, "Pod Security Standards")
