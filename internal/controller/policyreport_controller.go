@@ -88,7 +88,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				// Inspec the resource kind
 				if isKind(resource.Kind, r.TargetWorkloads) {
 					// Failed result, create or update PolicyExceptionDraft
-					if result.Result == "fail" {
+					if result.Result == "fail" || result.Result == "skip" {
 						// Logic to append the result into a map
 						// Check for namespace in map
 						if _, exists := r.FailedReports[policyReport.Namespace]; !exists {
