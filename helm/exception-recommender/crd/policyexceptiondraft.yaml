@@ -38,13 +38,13 @@ spec:
             description: PolicyExceptionDraftSpec defines the desired state of PolicyExceptionDraft
             properties:
               policies:
-                description: Match defines match clause used to check if a resource
-                  applies to the exception
+                description: Policies defines the list of policies to be excluded
                 items:
                   type: string
                 type: array
               targets:
-                description: Exceptions is a list policy/rules to be excluded
+                description: Targes defines the list of target workloads where the
+                  exceptions will be applied
                 items:
                   description: Target defines a resource to which a PolicyException
                     applies

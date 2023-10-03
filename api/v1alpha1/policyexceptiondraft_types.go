@@ -22,10 +22,10 @@ import (
 
 // PolicyExceptionDraftSpec defines the desired state of PolicyExceptionDraft
 type PolicyExceptionDraftSpec struct {
-	// Match defines match clause used to check if a resource applies to the exception
+	// Policies defines the list of policies to be excluded
 	Policies []string `json:"policies"`
 
-	// Exceptions is a list policy/rules to be excluded
+	// Targes defines the list of target workloads where the exceptions will be applied
 	Targets []Target `json:"targets"`
 }
 
