@@ -11,9 +11,9 @@ spec:
     kind: PolicyExceptionDraft
     listKind: PolicyExceptionDraftList
     plural: policyexceptiondrafts
-    singular: policyexceptiondraft
     shortNames:
-      - polexdraft
+    - polexdraft
+    singular: policyexceptiondraft
   scope: Namespaced
   versions:
   - name: v1alpha1
@@ -37,51 +37,37 @@ spec:
           spec:
             description: PolicyExceptionDraftSpec defines the desired state of PolicyExceptionDraft
             properties:
-              exceptions:
-                description: Exceptions is a list policy/rules to be excluded
+              policies:
+                description: Policies defines the list of policies to be excluded
                 items:
-                  description: Exception stores infos about a policy and rules
+                  type: string
+                type: array
+              targets:
+                description: Targes defines the list of target workloads where the
+                  exceptions will be applied
+                items:
+                  description: Target defines a resource to which a PolicyException
+                    applies
                   properties:
-                    policyName:
-                      description: PolicyName identifies the policy to which the exception
-                        is applied. The policy name uses the format <namespace>/<name>
-                        unless it references a ClusterPolicy.
+                    kind:
                       type: string
-                    ruleNames:
-                      description: RuleNames identifies the rules to which the exception
-                        is applied.
+                    names:
+                      items:
+                        type: string
+                      type: array
+                    namespaces:
                       items:
                         type: string
                       type: array
                   required:
-                  - policyName
-                  - ruleNames
+                  - kind
+                  - names
+                  - namespaces
                   type: object
                 type: array
-              match:
-                description: Match defines match clause used to check if a resource
-                  applies to the exception
-                properties:
-                  kinds:
-                    items:
-                      type: string
-                    type: array
-                  names:
-                    items:
-                      type: string
-                    type: array
-                  namespaces:
-                    items:
-                      type: string
-                    type: array
-                required:
-                - kinds
-                - names
-                - namespaces
-                type: object
             required:
-            - exceptions
-            - match
+            - policies
+            - targets
             type: object
         type: object
     served: true

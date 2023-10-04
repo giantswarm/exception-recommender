@@ -20,19 +20,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // PolicyExceptionDraftSpec defines the desired state of PolicyExceptionDraft
 type PolicyExceptionDraftSpec struct {
-	// Match defines match clause used to check if a resource applies to the exception
-	Match ResourceFilter `json:"match"`
+	// Policies defines the list of policies to be excluded
+	Policies []string `json:"policies"`
 
-	// Exceptions is a list policy/rules to be excluded
-	Exceptions []Exception `json:"exceptions"`
+	// Targes defines the list of target workloads where the exceptions will be applied
+	Targets []Target `json:"targets"`
 }
 
 //+kubebuilder:object:root=true
+//+kubebuilder:resource:shortName=polexdraft
 //+kubebuilder:subresource:status
 
 // PolicyExceptionDraft is the Schema for the policyexceptiondrafts API
@@ -43,22 +41,11 @@ type PolicyExceptionDraft struct {
 	Spec PolicyExceptionDraftSpec `json:"spec,omitempty"`
 }
 
-// Exception stores infos about a policy and rules
-type Exception struct {
-	// PolicyName identifies the policy to which the exception is applied.
-	// The policy name uses the format <namespace>/<name> unless it
-	// references a ClusterPolicy.
-	PolicyName string `json:"policyName"`
-
-	// RuleNames identifies the rules to which the exception is applied.
-	RuleNames []string `json:"ruleNames"`
-}
-
-// ResourceFilters
-type ResourceFilter struct {
+// Target defines a resource to which a PolicyException applies
+type Target struct {
 	Namespaces []string `json:"namespaces"`
 	Names      []string `json:"names"`
-	Kinds      []string `json:"kinds"`
+	Kind       string   `json:"kind"`
 }
 
 //+kubebuilder:object:root=true
