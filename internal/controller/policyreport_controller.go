@@ -23,7 +23,6 @@ import (
 	"github.com/go-logr/logr"
 	policyreport "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -71,16 +70,6 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// Error fetching the report
 		r.Log.Error(err, "unable to fetch PolicyReport")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-
-	// Check if we have the finalizer present
-	if !controllerutil.ContainsFinalizer(&policyReport, ExceptionRecommenderFinalizer) {
-		// Add finalizer since we don't have it
-		controllerutil.AddFinalizer(&policyReport, ExceptionRecommenderFinalizer)
-		// Update object
-		if err := r.Update(ctx, &policyReport); err != nil {
-			return reconcile.Result{}, err
-		}
 	}
 
 	for _, result := range policyReport.Results {
@@ -132,16 +121,15 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 								// Create new policy list and check if we need to remove the PolexDraft
 								if len(generatePolicies(r.FailedReports[policyReport.Namespace][resource.Name])) == 0 {
-									// Check if PolicyExceptionDraft exists
-									var polexDraft giantswarm.PolicyExceptionDraft
-									if err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: resource.Name}, &polexDraft); err != nil {
-										// Error fetching the PolicyExceptionDraft
-										r.Log.Error(err, "unable to fetch PolicyExceptionDraft")
-										return ctrl.Result{}, client.IgnoreNotFound(err)
+									// Delete PolicyExceptionDraft
+									polexDraft := giantswarm.PolicyExceptionDraft{
+										ObjectMeta: ctrl.ObjectMeta{
+											Name:      resource.Name,
+											Namespace: namespace,
+										},
 									}
-
 									if err := r.Client.Delete(ctx, &polexDraft, &client.DeleteOptions{}); err != nil {
-										// Error deelting the PolicyExceptionDraft
+										// Error deleting the PolicyExceptionDraft
 										r.Log.Error(err, "unable to delete PolicyExceptionDraft")
 										return ctrl.Result{}, client.IgnoreNotFound(err)
 									} else {
@@ -194,6 +182,17 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// Update object
 		if err := r.Update(ctx, &policyReport); err != nil {
 			return reconcile.Result{}, err
+		}
+	} else {
+		// Report is not being deleted
+		// Check if we have the finalizer present
+		if !controllerutil.ContainsFinalizer(&policyReport, ExceptionRecommenderFinalizer) {
+			// Add finalizer since we don't have it
+			controllerutil.AddFinalizer(&policyReport, ExceptionRecommenderFinalizer)
+			// Update object
+			if err := r.Update(ctx, &policyReport); err != nil {
+				return reconcile.Result{}, err
+			}
 		}
 	}
 
