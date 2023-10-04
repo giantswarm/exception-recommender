@@ -101,7 +101,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 							r.FailedReports[policyReport.Namespace][resource.Name][result.Policy] = []string{result.Rule}
 						} else {
 							// It exists, check if we need to update the object
-							if resultIsNotPresent(result, r.FailedReports[policyReport.Namespace][resource.Name][result.Policy]) {
+							if !resultIsPresent(result.Rule, r.FailedReports[policyReport.Namespace][resource.Name][result.Policy]) {
 								// Update map
 								r.FailedReports[policyReport.Namespace][resource.Name][result.Policy] = append(r.FailedReports[policyReport.Namespace][resource.Name][result.Policy], result.Rule)
 							}
@@ -110,7 +110,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 						// Resource exists, check if the result is present in the failed reports
 						if _, exists := r.FailedReports[policyReport.Namespace][resource.Name][result.Policy]; exists {
 
-							if !resultIsNotPresent(result, r.FailedReports[policyReport.Namespace][resource.Name][result.Policy]) {
+							if resultIsPresent(result.Rule, r.FailedReports[policyReport.Namespace][resource.Name][result.Policy]) {
 								// Resource was previously failing, remove it
 								newRules := removeResult(result, r.FailedReports[policyReport.Namespace][resource.Name][result.Policy])
 								if len(newRules) == 0 {
@@ -263,14 +263,14 @@ func generateTargets(result policyreport.PolicyReportResult) []giantswarm.Target
 	return targets
 }
 
-func resultIsNotPresent(result policyreport.PolicyReportResult, failedResults []string) bool {
+func resultIsPresent(result string, failedResults []string) bool {
 	for _, failedResult := range failedResults {
-		if failedResult == result.Rule {
-			// Already exists, return false
-			return false
+		if failedResult == result {
+			// Already exists, return true
+			return true
 		}
 	}
-	return true
+	return false
 }
 
 func isKind(resourceKind string, targetWorloads []string) bool {
