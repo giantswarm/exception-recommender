@@ -56,8 +56,8 @@ workflows:
           context: "architect"
           executor: "app-build-suite"
           name: "package and push exception-recommender chart"
-          app_catalog: "giantswarm-playground-catalog"
-          app_catalog_test: "giantswarm-playground-test-catalog"
+          app_catalog: "giantswarm-catalog"
+          app_catalog_test: "giantswarm-test-catalog"
           chart: "exception-recommender"
           # Trigger job on git tag.
           filters:
