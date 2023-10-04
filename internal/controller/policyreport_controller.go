@@ -145,7 +145,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 										r.Log.Error(err, "unable to delete PolicyExceptionDraft")
 										return ctrl.Result{}, client.IgnoreNotFound(err)
 									} else {
-										log.Log.Info(fmt.Sprintf("Deleting PolicyExceptionDraft %s/%s because it doesn't have any fail results", polexDraft.Namespace, polexDraft.Name))
+										log.Log.Info(fmt.Sprintf("Deleted PolicyExceptionDraft %s/%s because it doesn't have any fail results", polexDraft.Namespace, polexDraft.Name))
 									}
 								}
 							}
