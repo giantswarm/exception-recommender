@@ -40,3 +40,10 @@ helm.sh/chart: {{ include "chart" . | quote }}
 {{- define "recommender.CRDInstallSelector" -}}
 {{- printf "%s" "crd-install-hook" -}}
 {{- end -}}
+
+{{/* Define the image registry based on the global values */}}
+{{- define "global.imageRegistry" -}}
+{{- if ((.Values.global).image).registry -}}
+{{ .Values.global.image.registry }}
+{{- end -}}
+{{- end -}}
