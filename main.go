@@ -66,7 +66,6 @@ func main() {
 	targetWorkloads = append(targetWorkloads, "DaemonSet")
 	targetWorkloads = append(targetWorkloads, "StatefulSet")
 	targetWorkloads = append(targetWorkloads, "CronJob")
-	targetWorkloads = append(targetWorkloads, "Job")
 	targetCategories = append(targetCategories, "Pod Security Standards (Baseline)")
 	targetCategories = append(targetCategories, "Pod Security Standards (Restricted)")
 	targetCategories = append(targetCategories, "Pod Security Standards")
