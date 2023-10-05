@@ -119,6 +119,7 @@ workflows:
               ignore: /.*/
             tags:
               only: /^v.*/
+
       - architect/push-to-app-collection:
           name: capz-app-collection
           context: "architect"
@@ -132,6 +133,7 @@ workflows:
               ignore: /.*/
             tags:
               only: /^v.*/
+
       - architect/push-to-app-collection:
           name: gcp-app-collection
           context: "architect"
