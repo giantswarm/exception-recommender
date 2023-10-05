@@ -1,14 +1,17 @@
 name: exception-recommender
 serviceType: managed
 
+global:
+  image:
+    registry: "docker.io"
+  # Install PSPs
+  podSecurityStandards:
+    enforced: false
+
 image:
   registry: docker.io
   name: giantswarm/exception-recommender
   pullPolicy: IfNotPresent
-
-# Install PSPs
-psp:
-  enabled: true
 
 # We install CRDs through a Job with the helm specific crd folder.
 crds:
