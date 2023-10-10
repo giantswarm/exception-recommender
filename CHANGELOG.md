@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.2] - 2023-10-10
+
 ### Changed
 
 - Run preinstall job as non-root.
@@ -17,5 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First release of the Exception Recommender App.
 
-[Unreleased]: https://github.com/giantswarm/exception-recommender/compare/v0.0.1...HEAD
+[Unreleased]: https://github.com/giantswarm/exception-recommender/compare/v0.0.2...HEAD
+[0.0.2]: https://github.com/giantswarm/exception-recommender/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/giantswarm/exception-recommender/releases/tag/v0.0.1
