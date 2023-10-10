@@ -23,6 +23,7 @@ spec:
       securityContext:
         seccompProfile:
           type: RuntimeDefault
+        runAsNonRoot: true
         runAsUser: 65534
         runAsGroup: 65534
       tolerations:
@@ -44,8 +45,14 @@ spec:
           seccompProfile:
             type: RuntimeDefault
           readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          privileged: false
+          runAsNonRoot: true
           runAsUser: 65534
           runAsGroup: 65534
+          capabilities:
+            drop:
+            - ALL
         volumeMounts:
 {{- range $path, $_ := .Files.Glob "crd/**" }}
         - name: {{ $path | base | trimSuffix ".yaml" }}
