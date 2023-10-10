@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Run preinstall job as non-root.
+
 ## [0.0.1] - 2023-10-05
 
 ### Added
