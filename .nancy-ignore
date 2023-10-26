@@ -6,3 +6,4 @@ CVE-2019-15562 until=2023-11-19 # github.com/jinzhu/gorm@v1.9.1
 CVE-2020-8561 until=2023-11-19 # k8s.io/apiserver@v0.28.0
 CVE-2023-30551 until=2023-12-13 # github.com/sigstore/rekor@v1.0.1
 CVE-2023-33199 until=2023-12-13 # github.com/sigstore/rekor@v1.0.1
+CVE-2023-39325 until=2023-12-13 # golang.org/x/net@v0.15.0
