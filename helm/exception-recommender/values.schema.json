@@ -2,6 +2,14 @@
     "$schema": "http://json-schema.org/schema#",
     "type": "object",
     "properties": {
+        "ciliumNetworkPolicy": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "crds": {
             "type": "object",
             "properties": {
@@ -40,6 +48,27 @@
                                     "type": "string"
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "global": {
+            "type": "object",
+            "properties": {
+                "image": {
+                    "type": "object",
+                    "properties": {
+                        "registry": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "podSecurityStandards": {
+                    "type": "object",
+                    "properties": {
+                        "enforced": {
+                            "type": "boolean"
                         }
                     }
                 }
@@ -90,14 +119,6 @@
                             "type": "string"
                         }
                     }
-                }
-            }
-        },
-        "psp": {
-            "type": "object",
-            "properties": {
-                "enabled": {
-                    "type": "boolean"
                 }
             }
         },

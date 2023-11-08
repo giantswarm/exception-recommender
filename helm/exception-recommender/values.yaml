@@ -8,6 +8,9 @@ global:
   podSecurityStandards:
     enforced: false
 
+ciliumNetworkPolicy:
+  enabled: true
+
 image:
   registry: docker.io
   name: giantswarm/exception-recommender
