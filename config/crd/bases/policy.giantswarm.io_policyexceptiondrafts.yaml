@@ -35,7 +35,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: PolicyExceptionDraftSpec defines the desired state of PolicyExceptionDraft
+            description: PolicyExceptionSpec defines the desired state of PolicyException
             properties:
               policies:
                 description: Policies defines the list of policies to be excluded
