@@ -158,7 +158,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 						// Template PolicyExceptionDraft
 						polexDraft := giantswarm.PolicyExceptionDraft{}
 						// Set Name
-						polexDraft.Name = resource.Name
+						polexDraft.Name = resource.Name + "-" + resource.Kind
 						// Set Namespace
 						polexDraft.Namespace = namespace
 						// Set Labels
