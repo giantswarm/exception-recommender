@@ -81,6 +81,15 @@ func main() {
 	opts := zap.Options{
 		Development: true,
 	}
+	flag.Func("target-workloads",
+		"A comma-separated list of workloads to be included in the Draft generation. For example: DaemonSet,Deployment",
+		func(input string) error {
+			items := strings.Split(input, ",")
+
+			targetWorkloads = append(targetWorkloads, items...)
+
+			return nil
+		})
 	flag.Func("exclude-namespaces",
 		"A comma-separated list of namespaces to be excluded from draft generation.",
 		func(input string) error {
