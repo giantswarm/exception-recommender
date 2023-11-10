@@ -31,6 +31,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	securityv1alpha1 "github.com/giantswarm/exception-recommender/api/v1alpha1"
 	"github.com/giantswarm/exception-recommender/internal/controller"
@@ -64,13 +65,13 @@ func main() {
 	var excludeNamespaces []string
 	failedReports := make(map[string]map[string]map[string][]string)
 	// For testing
-	targetWorkloads = append(targetWorkloads, "Deployment")
-	targetWorkloads = append(targetWorkloads, "DaemonSet")
-	targetWorkloads = append(targetWorkloads, "StatefulSet")
-	targetWorkloads = append(targetWorkloads, "CronJob")
-	targetCategories = append(targetCategories, "Pod Security Standards (Baseline)")
-	targetCategories = append(targetCategories, "Pod Security Standards (Restricted)")
-	targetCategories = append(targetCategories, "Pod Security Standards")
+	// targetWorkloads = append(targetWorkloads, "Deployment")
+	// targetWorkloads = append(targetWorkloads, "DaemonSet")
+	// targetWorkloads = append(targetWorkloads, "StatefulSet")
+	// targetWorkloads = append(targetWorkloads, "CronJob")
+	// targetCategories = append(targetCategories, "Pod Security Standards (Baseline)")
+	// targetCategories = append(targetCategories, "Pod Security Standards (Restricted)")
+	// targetCategories = append(targetCategories, "Pod Security Standards")
 	// Flags
 	flag.StringVar(&destinationNamespace, "destination-namespace", "", "The namespace where the PolicyExceptionDrafts will be created. Defaults to resource namespace.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
@@ -115,8 +116,7 @@ func main() {
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
+		Metrics:                server.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "24b79667.giantswarm.io",
