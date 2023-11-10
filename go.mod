@@ -79,3 +79,5 @@ require (
 replace github.com/nats-io/jwt => github.com/nats-io/jwt v2.4.1+incompatible
 
 replace github.com/nats-io/nats-server/v2 => github.com/nats-io/nats-server/v2 v2.9.21
+
+replace github.com/sigstore/cosign/v2 => github.com/sigstore/cosign/v2 v2.2.1
