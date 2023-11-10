@@ -81,6 +81,15 @@ func main() {
 	opts := zap.Options{
 		Development: true,
 	}
+	flag.Func("target-categories",
+		"A comma-separated list of Kyverno Policy Categories to be included in the Draft generation. For example: 'Pod Security Standards'",
+		func(input string) error {
+			items := strings.Split(input, ",")
+
+			targetWorkloads = append(targetCategories, items...)
+
+			return nil
+		})
 	flag.Func("target-workloads",
 		"A comma-separated list of workloads to be included in the Draft generation. For example: DaemonSet,Deployment",
 		func(input string) error {
