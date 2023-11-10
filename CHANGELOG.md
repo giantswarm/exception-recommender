@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add `Namespace` exclusion from Draft generation.
+- Add `targetWorkloads` and `targetCategories` flags to allow Categories and Workload customization.
+
+### Changed
+
+- Change `PolicyExceptionDraftSpec` to `PolicyExceptionSpec`.
+- Append `Kind` to `PolicyExceptionDraft` name.
+
 ## [0.0.3] - 2023-11-10
 
 ### Added
