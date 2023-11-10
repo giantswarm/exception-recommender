@@ -19,6 +19,7 @@ package main
 import (
 	"flag"
 	"os"
+	"strings"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -60,6 +61,7 @@ func main() {
 	var destinationNamespace string
 	var targetWorkloads []string
 	var targetCategories []string
+	var excludeNamespaces []string
 	failedReports := make(map[string]map[string]map[string][]string)
 	// For testing
 	targetWorkloads = append(targetWorkloads, "Deployment")
@@ -79,6 +81,15 @@ func main() {
 	opts := zap.Options{
 		Development: true,
 	}
+	flag.Func("exclude-namespaces",
+		"A comma-separated list of namespaces to be excluded from draft generation.",
+		func(input string) error {
+			items := strings.Split(input, ",")
+
+			excludeNamespaces = append(excludeNamespaces, items...)
+
+			return nil
+		})
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
@@ -115,6 +126,7 @@ func main() {
 		TargetCategories:     targetCategories,
 		FailedReports:        failedReports,
 		DestinationNamespace: destinationNamespace,
+		ExcludeNamespaces:    excludeNamespaces,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "PolicyReport")
 		os.Exit(1)
