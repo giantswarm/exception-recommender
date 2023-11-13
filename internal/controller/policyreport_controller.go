@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
 	policyreport "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
@@ -159,7 +160,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 						// Template PolicyExceptionDraft
 						polexDraft := giantswarm.PolicyExceptionDraft{}
 						// Set Name
-						polexDraft.Name = resource.Name + "-" + resource.Kind
+						polexDraft.Name = resource.Name + "-" + strings.ToLower(resource.Kind)
 						// Set Namespace
 						polexDraft.Namespace = namespace
 						// Set Labels
