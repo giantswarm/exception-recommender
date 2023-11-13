@@ -18,7 +18,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"strings"
 
@@ -160,7 +159,6 @@ func main() {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
-	setupLog.Info(fmt.Sprintf("Excluded namespaces: %s", excludeNamespaces))
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
