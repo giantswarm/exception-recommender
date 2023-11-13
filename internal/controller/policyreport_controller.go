@@ -29,8 +29,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	giantswarm "github.com/giantswarm/exception-recommender/api/v1alpha1"
 	gsPolicy "github.com/giantswarm/kyverno-policy-operator/api/v1alpha1"
+
+	giantswarm "github.com/giantswarm/exception-recommender/api/v1alpha1"
 )
 
 const (
