@@ -66,17 +66,17 @@ resources:
 
 recommender:
   # Install PolicyExceptionDrafts on the giantswarm namespace
-  destinationNamespace: "policy-exceptions"
+  destinationNamespace: policy-exceptions
   targetWorkloads:
   - Deployment
   - DaemonSet
   - StatefulSet
   - CronJob
   targetCategories:
-  - "Pod Security Standards (Baseline)"
-  - "Pod Security Standards (Restricted)"
-  - "Pod Security Standards"
+  - Pod Security Standards (Baseline)
+  - Pod Security Standards (Restricted)
+  - Pod Security Standards
   excludeNamespaces:
-  - "kube-system"
-  - "giantswarm"
+  - kube-system
+  - giantswarm
   createNamespace: true
