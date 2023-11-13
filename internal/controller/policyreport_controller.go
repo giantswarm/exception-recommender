@@ -79,9 +79,13 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// Ignore report if namespace is excluded
 	if len(r.ExcludeNamespaces) != 0 {
 		for _, namespace := range r.ExcludeNamespaces {
+			log.Log.Info(fmt.Sprintf("Comparing report namespace %s with excluded namespace: %s", policyReport.Namespace, namespace))
 			if namespace == policyReport.Namespace {
 				// Namespace is excluded, ignore
+				log.Log.Info(fmt.Sprintf("Namespace %s is excluded, report will be ignored", namespace))
 				return reconcile.Result{}, nil
+			} else {
+				log.Log.Info(fmt.Sprintf("Namespace %s is allowed, excluded namespaces were: %s", policyReport.Namespace, r.ExcludeNamespaces))
 			}
 		}
 	}
