@@ -87,7 +87,7 @@ func main() {
 		func(input string) error {
 			items := strings.Split(input, ",")
 
-			targetWorkloads = append(targetCategories, items...)
+			targetCategories = append(targetCategories, items...)
 
 			return nil
 		})

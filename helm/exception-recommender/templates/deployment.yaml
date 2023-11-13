@@ -58,13 +58,13 @@ spec:
           - --destination-namespace={{ .Values.recommender.destinationNamespace }}
         {{- end }}
         {{- if .Values.recommender.targetWorkloads }}
-          - --target-workloads={{ .Values.recommender.targetWorkloads | join "," }}
+          - --target-workloads={{ .Values.recommender.targetWorkloads | join "," | quote }}
         {{- end }}
         {{- if .Values.recommender.targetCategories }}
-          - --target-categories={{ .Values.recommender.targetCategories | join "," }}
+          - --target-categories={{ .Values.recommender.targetCategories | join "," | quote }}
         {{- end }}
         {{- if .Values.recommender.excludeNamespaces }}
-          - --exclude-namespaces={{ .Values.recommender.excludeNamespaces | join "," }}
+          - --exclude-namespaces={{ .Values.recommender.excludeNamespaces | join "," | quote }}
         {{- end }}
         ports:
         - containerPort: 8080
