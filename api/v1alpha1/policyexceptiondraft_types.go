@@ -17,17 +17,9 @@ limitations under the License.
 package v1alpha1
 
 import (
+	gsPolicy "github.com/giantswarm/kyverno-policy-operator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-// PolicyExceptionDraftSpec defines the desired state of PolicyExceptionDraft
-type PolicyExceptionDraftSpec struct {
-	// Policies defines the list of policies to be excluded
-	Policies []string `json:"policies"`
-
-	// Targes defines the list of target workloads where the exceptions will be applied
-	Targets []Target `json:"targets"`
-}
 
 //+kubebuilder:object:root=true
 //+kubebuilder:resource:shortName=polexdraft
@@ -38,7 +30,7 @@ type PolicyExceptionDraft struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec PolicyExceptionDraftSpec `json:"spec,omitempty"`
+	Spec gsPolicy.PolicyExceptionSpec `json:"spec,omitempty"`
 }
 
 // Target defines a resource to which a PolicyException applies

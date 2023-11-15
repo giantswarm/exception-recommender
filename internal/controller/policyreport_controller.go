@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
 	policyreport "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
@@ -28,6 +29,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	gsPolicy "github.com/giantswarm/kyverno-policy-operator/api/v1alpha1"
 
 	giantswarm "github.com/giantswarm/exception-recommender/api/v1alpha1"
 )
@@ -41,6 +44,7 @@ type PolicyReportReconciler struct {
 	client.Client
 	Scheme               *runtime.Scheme
 	Log                  logr.Logger
+	ExcludeNamespaces    []string
 	DestinationNamespace string
 	TargetWorkloads      []string
 	TargetCategories     []string
@@ -70,6 +74,16 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// Error fetching the report
 		r.Log.Error(err, "unable to fetch PolicyReport")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	// Ignore report if namespace is excluded
+	if len(r.ExcludeNamespaces) != 0 {
+		for _, namespace := range r.ExcludeNamespaces {
+			if namespace == policyReport.Namespace {
+				// Namespace is excluded, ignore
+				return reconcile.Result{}, nil
+			}
+		}
 	}
 
 	for _, result := range policyReport.Results {
@@ -146,7 +160,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 						// Template PolicyExceptionDraft
 						polexDraft := giantswarm.PolicyExceptionDraft{}
 						// Set Name
-						polexDraft.Name = resource.Name
+						polexDraft.Name = resource.Name + "-" + strings.ToLower(resource.Kind)
 						// Set Namespace
 						polexDraft.Namespace = namespace
 						// Set Labels
@@ -249,11 +263,11 @@ func generatePolicies(results map[string][]string) []string {
 	return policies
 }
 
-func generateTargets(result policyreport.PolicyReportResult) []giantswarm.Target {
-	var targets []giantswarm.Target
+func generateTargets(result policyreport.PolicyReportResult) []gsPolicy.Target {
+	var targets []gsPolicy.Target
 	for _, resource := range result.Resources {
 
-		targets = append(targets, giantswarm.Target{
+		targets = append(targets, gsPolicy.Target{
 			Namespaces: []string{resource.Namespace},
 			Names:      []string{resource.Name + "*"},
 			Kind:       resource.Kind,
