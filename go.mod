@@ -8,8 +8,8 @@ require (
 	github.com/giantswarm/kyverno-policy-operator v0.0.5
 	github.com/go-logr/logr v1.3.0
 	github.com/kyverno/kyverno v1.11.0
-	github.com/onsi/ginkgo/v2 v2.11.0
-	github.com/onsi/gomega v1.27.10
+	github.com/onsi/ginkgo/v2 v2.13.1
+	github.com/onsi/gomega v1.30.0
 	k8s.io/apimachinery v0.28.3
 	k8s.io/client-go v0.28.3
 	sigs.k8s.io/controller-runtime v0.16.3
