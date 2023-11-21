@@ -27,6 +27,15 @@ giantswarm.io/service-type: {{ .Values.serviceType }}
 helm.sh/chart: {{ include "chart" . | quote }}
 {{- end -}}
 
+{{- define "recommender.cleanupJob.name" -}}
+{{- printf "%s-%s" ( include "resource.default.name" . ) "cleanup-job" | replace "+" "_" | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "recommender.cleanupJobAnnotations" -}}
+"helm.sh/hook": "pre-upgrade,pre-delete"
+"helm.sh/hook-delete-policy": "before-hook-creation,hook-succeeded"
+{{- end -}}
+
 {{- define "recommender.crdInstall" -}}
 {{- printf "%s-%s" ( include "resource.default.name" . ) "crd-install" | replace "+" "_" | trimSuffix "-" -}}
 {{- end -}}
