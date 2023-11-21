@@ -36,7 +36,7 @@ spec:
                 # piping stderr to stdout means kubectl's errors are surfaced
                 # in the pod's logs.
                 kubectl delete policyexceptiondrafts -n {{ .Values.recommender.destinationNamespace }} --all 2>&1
-          resources: {{- toYaml .Values.crds.resources | nindent 10 }}
+          resources: {{- toYaml .Values.crds.resources | nindent 12 }}
           securityContext:
             seccompProfile:
               type: RuntimeDefault
