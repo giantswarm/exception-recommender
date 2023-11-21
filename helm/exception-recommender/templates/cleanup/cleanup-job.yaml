@@ -4,11 +4,11 @@ kind: Job
 metadata:
   name: {{ template "recommender.cleanupJob" . }}
   namespace: {{ .Release.Namespace | quote }}
-  labels:
-    app.kubernetes.io/component: {{ include "recommender.cleanupJob" . | quote }}
-    {{- include "labels.selector" . | nindent 8 }}
   annotations:
     {{- include "recommender.cleanupJobAnnotations" . | nindent 4 }}
+  labels:
+    app.kubernetes.io/component: {{ include "recommender.cleanupJob" . | quote }}
+    {{- include "labels.selector" . | nindent 4 }}
 spec:
   backoffLimit: 2
   template:
@@ -26,26 +26,26 @@ spec:
         effect: NoSchedule
       containers:
         - name: kubectl
-        image: "{{ default .Values.image.registry (include "global.imageRegistry" . ) }}/giantswarm/docker-kubectl:{{ .Values.crds.image.tag }}"
-        command:
-            - sh
-            - '-c'
-            - |
-              set -o errexit ; set -o xtrace ; set -o nounset
+          image: "{{ default .Values.image.registry (include "global.imageRegistry" . ) }}/giantswarm/docker-kubectl:{{ .Values.crds.image.tag }}"
+          command:
+              - sh
+              - '-c'
+              - |
+                set -o errexit ; set -o xtrace ; set -o nounset
 
-              # piping stderr to stdout means kubectl's errors are surfaced
-              # in the pod's logs.
-              kubectl delete policyexceptiondrafts -n {{ .Values.recommender.destinationNamespace }} --all 2>&1
-        securityContext:
-          seccompProfile:
-            type: RuntimeDefault
-          readOnlyRootFilesystem: true
-          allowPrivilegeEscalation: false
-          privileged: false
-          runAsNonRoot: true
-          runAsUser: 65534
-          runAsGroup: 65534
-          capabilities:
-            drop:
-            - ALL
+                # piping stderr to stdout means kubectl's errors are surfaced
+                # in the pod's logs.
+                kubectl delete policyexceptiondrafts -n {{ .Values.recommender.destinationNamespace }} --all 2>&1
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            privileged: false
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            capabilities:
+              drop:
+              - ALL
 {{- end -}}
