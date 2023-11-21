@@ -27,7 +27,7 @@ giantswarm.io/service-type: {{ .Values.serviceType }}
 helm.sh/chart: {{ include "chart" . | quote }}
 {{- end -}}
 
-{{- define "recommender.cleanupJob.name" -}}
+{{- define "recommender.cleanupJob" -}}
 {{- printf "%s-%s" ( include "resource.default.name" . ) "cleanup-job" | replace "+" "_" | trimSuffix "-" -}}
 {{- end -}}
 
