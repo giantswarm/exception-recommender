@@ -229,7 +229,7 @@ func (r *PolicyReportReconciler) CreateOrUpdate(ctx context.Context, obj client.
 		// Update:
 		obj.SetResourceVersion(existingObj.GetResourceVersion())
 		obj.SetUID(existingObj.GetUID())
-		return r.Patch(ctx, obj, client.MergeFrom(existingObj.DeepCopy()))
+		return r.Patch(ctx, obj, client.StrategicMergeFrom(existingObj.DeepCopy()))
 	case errors.IsNotFound(err):
 		// Create:
 		return r.Create(ctx, obj)
