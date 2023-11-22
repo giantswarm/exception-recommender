@@ -23,6 +23,8 @@ import (
 
 	"github.com/go-logr/logr"
 	policyreport "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
+	"github.com/pingcap/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -168,22 +170,24 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 						polexDraft.Labels["app.kubernetes.io/managed-by"] = "exception-recommender"
 						// Set .Spec.Targets
 						polexDraft.Spec.Targets = generateTargets(result)
+						// Set .Spec.Policies
+						polexDraft.Spec.Policies = policies
 
-						// Create or Update PolicyExceptionDraft
-						if op, err := ctrl.CreateOrUpdate(ctx, r.Client, &polexDraft, func() error {
-							// Check if Policies changed
-							if !unorderedEqual(polexDraft.Spec.Policies, policies) {
-								// Set .Spec.Policies
-								polexDraft.Spec.Policies = policies
-							}
-
-							return nil
-						}); err != nil {
-							log.Log.Error(err, fmt.Sprintf("Reconciliation failed for PolicyExceptionDraft %s", polexDraft.Name))
+						// Patch PolicyException Kinds
+						gvks, unversioned, err := r.Scheme.ObjectKinds(&polexDraft)
+						if err != nil {
 							return ctrl.Result{}, err
-						} else if op != "unchanged" {
-							log.Log.Info(fmt.Sprintf("%s PolicyExceptionDraft %s/%s", op, polexDraft.Namespace, polexDraft.Name))
 						}
+						if !unversioned && len(gvks) == 1 {
+							polexDraft.SetGroupVersionKind(gvks[0])
+						}
+
+						if err := r.CreateOrUpdate(ctx, &polexDraft); err != nil {
+							log.Log.Error(err, "Error creating PolicyExceptionDraft")
+						} else {
+							log.Log.Info(fmt.Sprintf("Updated PolicyExceptionDraft %s", client.ObjectKeyFromObject(&polexDraft)))
+						}
+
 					}
 				}
 			}
@@ -213,23 +217,25 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	return ctrl.Result{}, nil
 }
 
-func unorderedEqual(want, got []string) bool {
-	// Return false if lenghts are not the same
-	if len(want) != len(got) {
-		return false
+// CreateOrUpdate attempts first to patch the object given but if an IsNotFound error
+// is returned it instead creates the resource.
+func (r *PolicyReportReconciler) CreateOrUpdate(ctx context.Context, obj client.Object) error {
+	existingObj := unstructured.Unstructured{}
+	existingObj.SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
+
+	err := r.Get(ctx, client.ObjectKeyFromObject(obj), &existingObj)
+	switch {
+	case err == nil:
+		// Update:
+		obj.SetResourceVersion(existingObj.GetResourceVersion())
+		obj.SetUID(existingObj.GetUID())
+		return r.Patch(ctx, obj, client.MergeFrom(existingObj.DeepCopy()))
+	case errors.IsNotFound(err):
+		// Create:
+		return r.Create(ctx, obj)
+	default:
+		return err
 	}
-	// Create map
-	exists := make(map[string]bool)
-	for _, value := range want {
-		exists[value] = true
-	}
-	// Compare values
-	for _, value := range got {
-		if !exists[value] {
-			return false
-		}
-	}
-	return true
 }
 
 // Remove function to remove a result from an array
