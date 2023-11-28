@@ -10,6 +10,14 @@
                 }
             }
         },
+        "cleanupJob": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "crds": {
             "type": "object",
             "properties": {

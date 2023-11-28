@@ -8,6 +8,9 @@ global:
   podSecurityStandards:
     enforced: false
 
+cleanupJob:
+  enabled: true
+
 ciliumNetworkPolicy:
   enabled: true
 

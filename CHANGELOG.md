@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `Namespace` exclusion from Draft generation.
 - Add `targetWorkloads` and `targetCategories` flags to allow Categories and Workload customization.
+- Add `cleanup` Job when upgrading or deleting `exception-recommender`.
 
 ### Changed
 
