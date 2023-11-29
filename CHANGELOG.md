@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Keep `policy-exceptions` namespace when deleting the chart.
+
 ## [0.0.4] - 2023-11-29
 
 ### Added
