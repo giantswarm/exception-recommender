@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Keep `policy-exceptions` namespace when deleting the chart.
+- Changed cleanup-job template to include `selector.labels`.
 
 ## [0.0.4] - 2023-11-29
 
