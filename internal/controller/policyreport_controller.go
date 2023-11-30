@@ -76,11 +76,24 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	// Remove finalizers, we won't use them anymore
+	if controllerutil.ContainsFinalizer(&policyReport, ExceptionRecommenderFinalizer) {
+		controllerutil.RemoveFinalizer(&policyReport, ExceptionRecommenderFinalizer)
+		// Update object
+		if err := r.Update(ctx, &policyReport); err != nil {
+			return reconcile.Result{}, err
+		}
+		// Exit unless the report is being deleted, we don't want duplicates from requeuing
+		if policyReport.ObjectMeta.DeletionTimestamp.IsZero() {
+			return reconcile.Result{}, nil
+		}
+	}
+
 	// Ignore report if namespace is excluded
 	if len(r.ExcludeNamespaces) != 0 {
 		for _, namespace := range r.ExcludeNamespaces {
 			if namespace == policyReport.Namespace {
-				// Namespace is excluded, ignore
+				// Namespace is excluded
 				return reconcile.Result{}, nil
 			}
 		}
@@ -100,7 +113,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				// Inspec the resource kind
 				if isKind(resource.Kind, r.TargetWorkloads) {
 					// Failed result, create or update PolicyExceptionDraft
-					if (result.Result == "fail" || result.Result == "skip") && policyReport.ObjectMeta.DeletionTimestamp.IsZero() {
+					if (result.Result == "fail") && policyReport.ObjectMeta.DeletionTimestamp.IsZero() {
 						// Logic to append the result into a map
 						// Check for namespace in map
 						if _, exists := r.FailedReports[policyReport.Namespace]; !exists {
@@ -120,7 +133,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 								r.FailedReports[policyReport.Namespace][resource.Name][result.Policy] = append(r.FailedReports[policyReport.Namespace][resource.Name][result.Policy], result.Rule)
 							}
 						}
-					} else if result.Result == "pass" || !policyReport.ObjectMeta.DeletionTimestamp.IsZero() {
+					} else if result.Result == "pass" || result.Result == "skip" || !policyReport.ObjectMeta.DeletionTimestamp.IsZero() {
 						// Resource exists, check if the result is present in the failed reports
 						if _, exists := r.FailedReports[policyReport.Namespace][resource.Name][result.Policy]; exists {
 
@@ -138,7 +151,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 									// Delete PolicyExceptionDraft
 									polexDraft := giantswarm.PolicyExceptionDraft{
 										ObjectMeta: ctrl.ObjectMeta{
-											Name:      resource.Name,
+											Name:      resource.Name + "-" + strings.ToLower(resource.Kind),
 											Namespace: namespace,
 										},
 									}
@@ -166,6 +179,10 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 						// Set Labels
 						polexDraft.Labels = make(map[string]string)
 						polexDraft.Labels["app.kubernetes.io/managed-by"] = "exception-recommender"
+						polexDraft.Labels["policy.giantswarm.io/resource-name"] = resource.Name
+						polexDraft.Labels["policy.giantswarm.io/resource-namespace"] = resource.Namespace
+						polexDraft.Labels["policy.giantswarm.io/resource-kind"] = resource.Kind
+
 						// Set .Spec.Targets
 						polexDraft.Spec.Targets = generateTargets(result)
 
@@ -176,36 +193,14 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 								// Set .Spec.Policies
 								polexDraft.Spec.Policies = policies
 							}
-
 							return nil
 						}); err != nil {
 							log.Log.Error(err, fmt.Sprintf("Reconciliation failed for PolicyExceptionDraft %s", polexDraft.Name))
-							return ctrl.Result{}, err
 						} else if op != "unchanged" {
 							log.Log.Info(fmt.Sprintf("%s PolicyExceptionDraft %s/%s", op, polexDraft.Namespace, polexDraft.Name))
 						}
 					}
 				}
-			}
-		}
-	}
-
-	// Remove Finalizer if the report is being deleted
-	if !policyReport.ObjectMeta.DeletionTimestamp.IsZero() {
-		controllerutil.RemoveFinalizer(&policyReport, ExceptionRecommenderFinalizer)
-		// Update object
-		if err := r.Update(ctx, &policyReport); err != nil {
-			return reconcile.Result{}, err
-		}
-	} else {
-		// Report is not being deleted
-		// Check if we have the finalizer present
-		if !controllerutil.ContainsFinalizer(&policyReport, ExceptionRecommenderFinalizer) {
-			// Add finalizer since we don't have it
-			controllerutil.AddFinalizer(&policyReport, ExceptionRecommenderFinalizer)
-			// Update object
-			if err := r.Update(ctx, &policyReport); err != nil {
-				return reconcile.Result{}, err
 			}
 		}
 	}
