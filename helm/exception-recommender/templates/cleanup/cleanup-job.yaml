@@ -12,6 +12,8 @@ metadata:
 spec:
   backoffLimit: 2
   template:
+    labels:
+      {{- include "labels.selector" . | nindent 6 }}
     spec:
       restartPolicy: Never
       serviceAccountName: {{ include "resource.default.name"  . }}
