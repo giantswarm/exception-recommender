@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Remove finalizers from reconcile logic.
+- Ignore `skip` results.
+
 ## [0.0.5] - 2023-11-30
 
 ### Changed
