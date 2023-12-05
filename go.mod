@@ -80,4 +80,4 @@ replace github.com/nats-io/jwt => github.com/nats-io/jwt v2.5.3+incompatible
 
 replace github.com/nats-io/nats-server/v2 => github.com/nats-io/nats-server/v2 v2.10.5
 
-replace github.com/sigstore/cosign/v2 => github.com/sigstore/cosign/v2 v2.2.1
+replace github.com/sigstore/cosign/v2 => github.com/sigstore/cosign/v2 v2.2.2
