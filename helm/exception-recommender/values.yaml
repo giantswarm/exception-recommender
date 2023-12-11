@@ -3,7 +3,7 @@ serviceType: managed
 
 global:
   image:
-    registry: "docker.io"
+    registry: "gsoci.azurecr.io"
   # Install PSPs
   podSecurityStandards:
     enforced: false
@@ -15,7 +15,7 @@ ciliumNetworkPolicy:
   enabled: true
 
 image:
-  registry: docker.io
+  registry: gsoci.azurecr.io
   name: giantswarm/exception-recommender
   pullPolicy: IfNotPresent
 
@@ -52,7 +52,7 @@ securityContext:
   allowPrivilegeEscalation: false
   capabilities:
     drop:
-    - ALL
+      - ALL
   privileged: false
   readOnlyRootFilesystem: true
   runAsNonRoot: true
@@ -71,15 +71,15 @@ recommender:
   # Install PolicyExceptionDrafts on the giantswarm namespace
   destinationNamespace: policy-exceptions
   targetWorkloads:
-  - Deployment
-  - DaemonSet
-  - StatefulSet
-  - CronJob
+    - Deployment
+    - DaemonSet
+    - StatefulSet
+    - CronJob
   targetCategories:
-  - Pod Security Standards (Baseline)
-  - Pod Security Standards (Restricted)
-  - Pod Security Standards
+    - Pod Security Standards (Baseline)
+    - Pod Security Standards (Restricted)
+    - Pod Security Standards
   excludeNamespaces:
-  - kube-system
-  - giantswarm
+    - kube-system
+    - giantswarm
   createNamespace: true
