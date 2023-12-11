@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.7] - 2023-12-11
+
 ### Changed
 
 - Configure `gsoci.azurecr.io` as the default container image registry.
@@ -56,7 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First release of the Exception Recommender App.
 
-[Unreleased]: https://github.com/giantswarm/exception-recommender/compare/v0.0.6...HEAD
+[Unreleased]: https://github.com/giantswarm/exception-recommender/compare/v0.0.7...HEAD
+[0.0.7]: https://github.com/giantswarm/exception-recommender/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/giantswarm/exception-recommender/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/giantswarm/exception-recommender/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/giantswarm/exception-recommender/compare/v0.0.3...v0.0.4
