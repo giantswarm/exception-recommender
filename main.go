@@ -63,15 +63,6 @@ func main() {
 	var targetWorkloads []string
 	var targetCategories []string
 	var excludeNamespaces []string
-	failedReports := make(map[string]map[string]map[string][]string)
-	// For testing
-	// targetWorkloads = append(targetWorkloads, "Deployment")
-	// targetWorkloads = append(targetWorkloads, "DaemonSet")
-	// targetWorkloads = append(targetWorkloads, "StatefulSet")
-	// targetWorkloads = append(targetWorkloads, "CronJob")
-	// targetCategories = append(targetCategories, "Pod Security Standards (Baseline)")
-	// targetCategories = append(targetCategories, "Pod Security Standards (Restricted)")
-	// targetCategories = append(targetCategories, "Pod Security Standards")
 	// Flags
 	flag.StringVar(&destinationNamespace, "destination-namespace", "", "The namespace where the PolicyExceptionDrafts will be created. Defaults to resource namespace.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
@@ -142,7 +133,6 @@ func main() {
 		Scheme:               mgr.GetScheme(),
 		TargetWorkloads:      targetWorkloads,
 		TargetCategories:     targetCategories,
-		FailedReports:        failedReports,
 		DestinationNamespace: destinationNamespace,
 		ExcludeNamespaces:    excludeNamespaces,
 	}).SetupWithManager(mgr); err != nil {
