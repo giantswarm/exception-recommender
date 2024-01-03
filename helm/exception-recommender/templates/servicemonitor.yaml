@@ -1,0 +1,31 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    {{- include "labels.common" . | nindent 4 }}
+  name: {{ include "resource.default.name"  . }}
+  namespace: {{ include "resource.default.namespace"  . }}
+spec:
+  endpoints:
+  - path: /metrics
+    port: metrics
+    {{- if .Values.monitoring.serviceMonitor.interval}}
+    interval: {{ .Values.monitoring.serviceMonitor.interval }}
+    {{- end }}
+    {{- if .Values.monitoring.serviceMonitor.scrapeTimeout}}
+    scrapeTimeout: {{ .Values.monitoring.serviceMonitor.scrapeTimeout }}
+    {{- end }}
+    {{- with .Values.monitoring.serviceMonitor.relabelings }}
+    relabelings:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.monitoring.serviceMonitor.metricRelabelings }}
+    metricRelabelings:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  namespaceSelector:
+    matchNames:
+    - {{ include "resource.default.namespace"  . }}
+  selector:
+    matchLabels:
+      {{- include "labels.selector" . | nindent 6 }}
