@@ -23,12 +23,14 @@ import (
 
 	"github.com/go-logr/logr"
 	policyreport "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
+	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	gsPolicy "github.com/giantswarm/kyverno-policy-operator/api/v1alpha1"
@@ -38,6 +40,17 @@ import (
 
 const (
 	ExceptionRecommenderFinalizer = "policy.giantswarm.io/exception-recommender"
+)
+
+// Declare custom PSS failures metrics
+var (
+	PSSFailures = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "pss_failure",
+			Help: "Indicates a PSS Policy failure for a workload",
+		},
+		MetricLabels,
+	)
 )
 
 // PolicyReportReconciler reconciles a PolicyReport object
@@ -55,15 +68,6 @@ type PolicyReportReconciler struct {
 //+kubebuilder:rbac:groups=kyverno.io.giantswarm.io,resources=policyreports/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=kyverno.io.giantswarm.io,resources=policyreports/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the PolicyReport object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
 func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 	_ = r.Log.WithValues("policyreport", req.NamespacedName)
@@ -105,6 +109,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	var failedPolicies []string
+	customMetrics := instanciateCustomMetrics(*policyReport.Scope)
 
 	for _, result := range policyReport.Results {
 		// Check the result status and PolicyCategory
@@ -116,6 +121,11 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				if !resultIsPresent(result.Policy, failedPolicies) {
 					// Update map
 					failedPolicies = append(failedPolicies, result.Policy)
+					// Publish metric
+					// TODO: Add an extra category validation to make sure we only publish PSS failures since the categories can be modified
+					// OR change metric name if we won't do only PSS
+					customMetrics["failed_policy"] = result.Policy
+					PSSFailures.With(customMetrics).Inc()
 				}
 
 			}
@@ -156,14 +166,24 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			if !unorderedEqual(polexDraft.Spec.Policies, failedPolicies) {
 				// Set .Spec.Policies
 				polexDraft.Spec.Policies = failedPolicies
+				// Delete custom metrics
+				removeCustomMetrics(polexDraft.Spec.Policies, failedPolicies, *policyReport.Scope)
 			}
 			return nil
 		}); err != nil {
 			log.Log.Error(err, fmt.Sprintf("Reconciliation failed for PolicyExceptionDraft %s", polexDraft.Name))
+			// Increase failure counter metric
+			RecommenderFailures.Inc()
 		} else if op != "unchanged" {
 			log.Log.Info(fmt.Sprintf("%s PolicyExceptionDraft %s/%s", op, polexDraft.Namespace, polexDraft.Name))
 		}
 	} else {
+		// Delete custom metrics
+		PSSFailures.DeletePartialMatch(prometheus.Labels{
+			"workload_name":      policyReport.Scope.Name,
+			"workload_kind":      policyReport.Scope.Kind,
+			"workload_namespace": policyReport.Scope.Namespace,
+		})
 		// Get current draft and delete it
 		// Delete PolicyExceptionDraft
 		polexDraft := giantswarm.PolicyExceptionDraft{
@@ -184,6 +204,25 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	return ctrl.Result{}, nil
 }
 
+func removeCustomMetrics(want, got []string, resource corev1.ObjectReference) {
+	// Create map
+	exists := make(map[string]bool)
+	for _, value := range want {
+		exists[value] = true
+	}
+	// Compare values
+	for _, value := range got {
+		if !exists[value] {
+			PSSFailures.Delete(prometheus.Labels{
+				"workload_name":      resource.Name,
+				"workload_kind":      resource.Kind,
+				"workload_namespace": resource.Namespace,
+				"policy_name":        value,
+			})
+		}
+	}
+}
+
 func unorderedEqual(want, got []string) bool {
 	// Return false if lenghts are not the same
 	if len(want) != len(got) {
@@ -201,6 +240,16 @@ func unorderedEqual(want, got []string) bool {
 		}
 	}
 	return true
+}
+
+func instanciateCustomMetrics(resource corev1.ObjectReference) map[string]string {
+	labels := map[string]string{}
+
+	labels["workload_name"] = resource.Name
+	labels["workload_kind"] = resource.Kind
+	labels["workload_namespace"] = resource.Namespace
+
+	return labels
 }
 
 func generateTargets(resource corev1.ObjectReference) []gsPolicy.Target {
@@ -244,6 +293,11 @@ func isPolicyCategory(resultCategory string, targetCategories []string) bool {
 		}
 	}
 	return false
+}
+
+func init() {
+	// Register custom metrics with the global prometheus registry
+	metrics.Registry.MustRegister(PSSFailures)
 }
 
 // SetupWithManager sets up the controller with the Manager.

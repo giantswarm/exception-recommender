@@ -67,6 +67,13 @@ resources:
     cpu: 100m
     memory: 220Mi
 
+monitoring:
+  serviceMonitor: {}
+    # interval: 15s
+    # scrapeTimeout: 30s
+    # relabelings: {}
+    # metricRelabelings: {}
+
 recommender:
   # Install PolicyExceptionDrafts on the giantswarm namespace
   destinationNamespace: policy-exceptions
