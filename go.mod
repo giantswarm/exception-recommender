@@ -6,7 +6,7 @@ toolchain go1.21.6
 
 require (
 	github.com/giantswarm/kyverno-policy-operator v0.0.6
-	github.com/go-logr/logr v1.3.0
+	github.com/go-logr/logr v1.4.1
 	github.com/kyverno/kyverno v1.11.3
 	github.com/onsi/ginkgo/v2 v2.14.0
 	github.com/onsi/gomega v1.30.0
