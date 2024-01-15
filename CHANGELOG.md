@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Reworked PolicyReports logic for Kyverno 1.11.2 compatibility.
+
 ## [0.0.7] - 2023-12-11
 
 ### Changed
