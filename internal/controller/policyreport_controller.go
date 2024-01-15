@@ -23,6 +23,7 @@ import (
 
 	"github.com/go-logr/logr"
 	policyreport "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -48,7 +49,6 @@ type PolicyReportReconciler struct {
 	DestinationNamespace string
 	TargetWorkloads      []string
 	TargetCategories     []string
-	FailedReports        map[string]map[string]map[string][]string
 }
 
 //+kubebuilder:rbac:groups=kyverno.io.giantswarm.io,resources=policyreports,verbs=get;list;watch;create;update;patch;delete
@@ -93,115 +93,91 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if len(r.ExcludeNamespaces) != 0 {
 		for _, namespace := range r.ExcludeNamespaces {
 			if namespace == policyReport.Namespace {
-				// Namespace is excluded
+				// Namespace is excluded, skip
 				return reconcile.Result{}, nil
 			}
 		}
 	}
 
+	if !isKind(policyReport.Scope.Kind, r.TargetWorkloads) {
+		// Kind is not part of the targetWorkloads list, skip
+		return reconcile.Result{}, nil
+	}
+
+	var failedPolicies []string
+
 	for _, result := range policyReport.Results {
 		// Check the result status and PolicyCategory
 		if isPolicyCategory(result.Category, r.TargetCategories) {
-			for _, resource := range result.Resources {
-				var namespace string
 
-				if r.DestinationNamespace == "" {
-					namespace = resource.Namespace
-				} else {
-					namespace = r.DestinationNamespace
+			// Failed result, create or update PolicyExceptionDraft
+			if result.Result == "fail" {
+
+				if !resultIsPresent(result.Policy, failedPolicies) {
+					// Update map
+					failedPolicies = append(failedPolicies, result.Policy)
 				}
-				// Inspec the resource kind
-				if isKind(resource.Kind, r.TargetWorkloads) {
-					// Failed result, create or update PolicyExceptionDraft
-					if (result.Result == "fail") && policyReport.ObjectMeta.DeletionTimestamp.IsZero() {
-						// Logic to append the result into a map
-						// Check for namespace in map
-						if _, exists := r.FailedReports[policyReport.Namespace]; !exists {
-							// It doesn't exist, create it
-							r.FailedReports[policyReport.Namespace] = make(map[string]map[string][]string)
-						}
-						// Check for resource in map
-						if _, exists := r.FailedReports[policyReport.Namespace][resource.Name]; !exists {
-							// It doesn't exist, create it
-							// TODO: Instead of directly creating it, fetch the drafts and look if it already exists to create a cache
-							r.FailedReports[policyReport.Namespace][resource.Name] = make(map[string][]string)
-							r.FailedReports[policyReport.Namespace][resource.Name][result.Policy] = []string{result.Rule}
-						} else {
-							// It exists, check if we need to update the object
-							if !resultIsPresent(result.Rule, r.FailedReports[policyReport.Namespace][resource.Name][result.Policy]) {
-								// Update map
-								r.FailedReports[policyReport.Namespace][resource.Name][result.Policy] = append(r.FailedReports[policyReport.Namespace][resource.Name][result.Policy], result.Rule)
-							}
-						}
-					} else if result.Result == "pass" || result.Result == "skip" || !policyReport.ObjectMeta.DeletionTimestamp.IsZero() {
-						// Resource exists, check if the result is present in the failed reports
-						if _, exists := r.FailedReports[policyReport.Namespace][resource.Name][result.Policy]; exists {
 
-							if resultIsPresent(result.Rule, r.FailedReports[policyReport.Namespace][resource.Name][result.Policy]) {
-								// Resource was previously failing, remove it
-								newRules := removeResult(result, r.FailedReports[policyReport.Namespace][resource.Name][result.Policy])
-								if len(newRules) == 0 {
-									delete(r.FailedReports[policyReport.Namespace][resource.Name], result.Policy)
-								} else {
-									r.FailedReports[policyReport.Namespace][resource.Name][result.Policy] = newRules
-								}
-
-								// Create new policy list and check if we need to remove the PolexDraft
-								if len(generatePolicies(r.FailedReports[policyReport.Namespace][resource.Name])) == 0 {
-									// Delete PolicyExceptionDraft
-									polexDraft := giantswarm.PolicyExceptionDraft{
-										ObjectMeta: ctrl.ObjectMeta{
-											Name:      resource.Name + "-" + strings.ToLower(resource.Kind),
-											Namespace: namespace,
-										},
-									}
-									if err := r.Client.Delete(ctx, &polexDraft, &client.DeleteOptions{}); err != nil {
-										// Error deleting the PolicyExceptionDraft
-										r.Log.Error(err, "unable to delete PolicyExceptionDraft")
-										return ctrl.Result{}, client.IgnoreNotFound(err)
-									} else {
-										log.Log.Info(fmt.Sprintf("Deleted PolicyExceptionDraft %s/%s because it doesn't have any fail results", polexDraft.Namespace, polexDraft.Name))
-									}
-								}
-							}
-						}
-
-					}
-					// Generate final Policy list
-					policies := generatePolicies(r.FailedReports[policyReport.Namespace][resource.Name])
-					if len(policies) != 0 {
-						// Template PolicyExceptionDraft
-						polexDraft := giantswarm.PolicyExceptionDraft{}
-						// Set Name
-						polexDraft.Name = resource.Name + "-" + strings.ToLower(resource.Kind)
-						// Set Namespace
-						polexDraft.Namespace = namespace
-						// Set Labels
-						polexDraft.Labels = make(map[string]string)
-						polexDraft.Labels["app.kubernetes.io/managed-by"] = "exception-recommender"
-						polexDraft.Labels["policy.giantswarm.io/resource-name"] = resource.Name
-						polexDraft.Labels["policy.giantswarm.io/resource-namespace"] = resource.Namespace
-						polexDraft.Labels["policy.giantswarm.io/resource-kind"] = resource.Kind
-
-						// Set .Spec.Targets
-						polexDraft.Spec.Targets = generateTargets(result)
-
-						// Create or Update PolicyExceptionDraft
-						if op, err := ctrl.CreateOrUpdate(ctx, r.Client, &polexDraft, func() error {
-							// Check if Policies changed
-							if !unorderedEqual(polexDraft.Spec.Policies, policies) {
-								// Set .Spec.Policies
-								polexDraft.Spec.Policies = policies
-							}
-							return nil
-						}); err != nil {
-							log.Log.Error(err, fmt.Sprintf("Reconciliation failed for PolicyExceptionDraft %s", polexDraft.Name))
-						} else if op != "unchanged" {
-							log.Log.Info(fmt.Sprintf("%s PolicyExceptionDraft %s/%s", op, polexDraft.Namespace, polexDraft.Name))
-						}
-					}
-				}
 			}
+
+		}
+	}
+
+	var namespace string
+
+	if r.DestinationNamespace == "" {
+		namespace = policyReport.Scope.Namespace
+	} else {
+		namespace = r.DestinationNamespace
+	}
+
+	// Generate final Policy list
+	if len(failedPolicies) != 0 {
+
+		// Template PolicyExceptionDraft
+		polexDraft := giantswarm.PolicyExceptionDraft{}
+		// Set Name
+		polexDraft.Name = policyReport.Scope.Name + "-" + strings.ToLower(policyReport.Scope.Kind)
+		// Set Namespace
+		polexDraft.Namespace = namespace
+		// Set Labels
+		polexDraft.Labels = make(map[string]string)
+		polexDraft.Labels["app.kubernetes.io/managed-by"] = "exception-recommender"
+		polexDraft.Labels["policy.giantswarm.io/resource-name"] = policyReport.Scope.Name
+		polexDraft.Labels["policy.giantswarm.io/resource-namespace"] = policyReport.Scope.Namespace
+		polexDraft.Labels["policy.giantswarm.io/resource-kind"] = policyReport.Scope.Kind
+
+		// Set .Spec.Targets
+		polexDraft.Spec.Targets = generateTargets(*policyReport.Scope)
+
+		// Create or Update PolicyExceptionDraft
+		if op, err := ctrl.CreateOrUpdate(ctx, r.Client, &polexDraft, func() error {
+			// Check if Policies changed
+			if !unorderedEqual(polexDraft.Spec.Policies, failedPolicies) {
+				// Set .Spec.Policies
+				polexDraft.Spec.Policies = failedPolicies
+			}
+			return nil
+		}); err != nil {
+			log.Log.Error(err, fmt.Sprintf("Reconciliation failed for PolicyExceptionDraft %s", polexDraft.Name))
+		} else if op != "unchanged" {
+			log.Log.Info(fmt.Sprintf("%s PolicyExceptionDraft %s/%s", op, polexDraft.Namespace, polexDraft.Name))
+		}
+	} else {
+		// Get current draft and delete it
+		// Delete PolicyExceptionDraft
+		polexDraft := giantswarm.PolicyExceptionDraft{
+			ObjectMeta: ctrl.ObjectMeta{
+				Name:      policyReport.Scope.Name + "-" + strings.ToLower(policyReport.Scope.Kind),
+				Namespace: namespace,
+			},
+		}
+		if err := r.Client.Delete(ctx, &polexDraft, &client.DeleteOptions{}); err != nil {
+			// Error deleting the PolicyExceptionDraft
+			r.Log.Error(err, "unable to delete PolicyExceptionDraft")
+			return ctrl.Result{}, client.IgnoreNotFound(err)
+		} else {
+			log.Log.Info(fmt.Sprintf("Deleted PolicyExceptionDraft %s/%s because it doesn't have any failed results", polexDraft.Namespace, polexDraft.Name))
 		}
 	}
 
@@ -227,48 +203,16 @@ func unorderedEqual(want, got []string) bool {
 	return true
 }
 
-// Remove function to remove a result from an array
-func removeResult(result policyreport.PolicyReportResult, array []string) []string {
-	// Special case
-	if len(array) == 1 {
-		// Single element array, just return empty array
-		return []string{}
-	}
-	for index, item := range array {
-		if item == result.Rule {
-			// Check if the current index is the last item of the array
-			if index != len(array) {
-				// Copy last item to current position
-				array[index] = array[len(array)-1]
-			}
-			// Return array without last item
-			return array[:len(array)-1]
-		}
-	}
-	// Item not found, return original array
-	return array
-}
-
-func generatePolicies(results map[string][]string) []string {
-	// Creates the Spec.Policies object for PolicyException(Draft) CRD.
-	var policies []string
-	for policyName := range results {
-		policies = append(policies, policyName)
-	}
-	return policies
-}
-
-func generateTargets(result policyreport.PolicyReportResult) []gsPolicy.Target {
+func generateTargets(resource corev1.ObjectReference) []gsPolicy.Target {
 	var targets []gsPolicy.Target
-	for _, resource := range result.Resources {
 
-		targets = append(targets, gsPolicy.Target{
-			Namespaces: []string{resource.Namespace},
-			Names:      []string{resource.Name + "*"},
-			Kind:       resource.Kind,
-		},
-		)
-	}
+	targets = append(targets, gsPolicy.Target{
+		Namespaces: []string{resource.Namespace},
+		Names:      []string{resource.Name + "*"},
+		Kind:       resource.Kind,
+	},
+	)
+
 	return targets
 }
 
