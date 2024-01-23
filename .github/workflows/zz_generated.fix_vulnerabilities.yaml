@@ -95,3 +95,4 @@ jobs:
           GITHUB_TOKEN: "${{ steps.generate_token.outputs.token }}"
         run: |
           gh pr create --title "Remediate Nancy findings" --body "Fix Nancy findings" --head ${{ steps.commit_changes.outputs.branch }} --base "${{ needs.gather_facts.outputs.branch }}"
+          gh pr merge --auto
