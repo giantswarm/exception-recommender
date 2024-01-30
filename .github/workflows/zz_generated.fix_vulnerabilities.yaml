@@ -79,6 +79,7 @@ jobs:
           branch="remediate-vulnerabilities"
           echo "branch=${branch}" >> $GITHUB_OUTPUT
           git checkout -b $branch
+          git pull origin $branch --rebase
           git add -A
           if git diff-index --quiet HEAD; then
             echo "No changes found"
