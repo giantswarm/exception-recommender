@@ -9,3 +9,4 @@ CVE-2023-33199 until=2023-12-13 # github.com/sigstore/rekor@v1.0.1
 CVE-2023-39325 until=2023-12-13 # golang.org/x/net@v0.15.0
 CVE-2023-49290 until=2024-04-22 # github.com/lestrrat-go/jwx/v2@v2.0.16
 CVE-2024-21664 until=2024-04-22 # github.com/lestrrat-go/jwx/v2@v2.0.16
+CVE-2024-23332 until=2024-04-29 # github.com/notaryproject/notation-go@v1.0.0
