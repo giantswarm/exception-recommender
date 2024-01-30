@@ -68,7 +68,7 @@ jobs:
           persist-credentials: false
           ref: ${{ needs.gather_facts.outputs.branch }}
       - name: Run nancy-fixer fix
-        uses: giantswarm/nancy-fixer@v0.3.1
+        uses: giantswarm/nancy-fixer@6db322b68e95fe9dee9aed799c3230e78d45d91f
       - name: Set up git identity
         run: |
           git config --local user.email "149080493+heraldbot[bot]@users.noreply.github.com"
