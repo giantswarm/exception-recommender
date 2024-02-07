@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Disable namespace creation by default since it was moved to Kyverno.
+- Check if namespace exists before creation.
+
 ## [0.1.0] - 2024-01-15
 
 ### Changed

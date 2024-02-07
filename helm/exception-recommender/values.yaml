@@ -82,4 +82,4 @@ recommender:
   excludeNamespaces:
     - kube-system
     - giantswarm
-  createNamespace: true
+  createNamespace: false
