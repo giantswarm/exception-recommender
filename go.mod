@@ -73,7 +73,7 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-replace github.com/nats-io/jwt => github.com/nats-io/jwt v2.5.3+incompatible
+replace github.com/nats-io/jwt => github.com/nats-io/jwt v2.5.5+incompatible
 
 replace github.com/nats-io/nats-server/v2 => github.com/nats-io/nats-server/v2 v2.10.9
 
