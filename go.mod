@@ -72,9 +72,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
-
-replace github.com/nats-io/jwt => github.com/nats-io/jwt v2.5.3+incompatible
-
-replace github.com/nats-io/nats-server/v2 => github.com/nats-io/nats-server/v2 v2.10.9
-
-replace github.com/sigstore/cosign/v2 => github.com/sigstore/cosign/v2 v2.2.2
