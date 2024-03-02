@@ -22,7 +22,7 @@ jobs:
     name: Gather facts
     runs-on: ubuntu-22.04
     outputs:
-      branch: ${{ steps.gather_facts.outputs.branch }}
+      branch: ${{ steps.gather_facts.outputs.head }}
       skip : ${{ steps.gather_facts.outputs.skip }}
     steps:
       - name: Checkout code
