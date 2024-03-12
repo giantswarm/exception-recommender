@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- policy_v1alpha1_policymanifest.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples

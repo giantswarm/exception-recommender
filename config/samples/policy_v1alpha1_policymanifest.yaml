@@ -1,0 +1,12 @@
+apiVersion: policy.giantswarm.io/v1alpha1
+kind: PolicyManifest
+metadata:
+  labels:
+    app.kubernetes.io/name: policymanifest
+    app.kubernetes.io/instance: policymanifest-sample
+    app.kubernetes.io/part-of: exception-recommender
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: exception-recommender
+  name: policymanifest-sample
+spec:
+  # TODO(user): Add fields here

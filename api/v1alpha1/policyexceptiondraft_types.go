@@ -33,13 +33,6 @@ type PolicyExceptionDraft struct {
 	Spec gsPolicy.PolicyExceptionSpec `json:"spec,omitempty"`
 }
 
-// Target defines a resource to which a PolicyException applies
-type Target struct {
-	Namespaces []string `json:"namespaces"`
-	Names      []string `json:"names"`
-	Kind       string   `json:"kind"`
-}
-
 //+kubebuilder:object:root=true
 
 // PolicyExceptionDraftList contains a list of PolicyExceptionDraft

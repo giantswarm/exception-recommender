@@ -1,0 +1,13 @@
+apiVersion: policy.giantswarm.io/v1alpha1
+kind: PolicyManifest
+metadata:
+  name: require-trusted-image-registries
+  labels:
+    policy.giantswarm.io/policy: "require-trusted-image-registries"
+spec:
+  mode: "warning"
+  args:
+  - "arg1"
+  - "arg2"
+  - "argN"
+  exceptions: []
