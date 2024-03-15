@@ -4,20 +4,21 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.12.0
-  name: policymanifests.policy.giantswarm.io
+  name: automatedexceptions.policy.giantswarm.io
 spec:
   group: policy.giantswarm.io
   names:
-    kind: PolicyManifest
-    listKind: PolicyManifestList
-    plural: policymanifests
-    singular: policymanifest
+    kind: AutomatedException
+    listKind: AutomatedExceptionList
+    plural: automatedexceptions
+    singular: automatedexception
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: PolicyManifest is the Schema for the policymanifests API
+        description: AutomatedException is the Schema for the automatedexceptions
+          API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -32,13 +33,16 @@ spec:
           metadata:
             type: object
           spec:
-            description: PolicyManifestSpec defines the desired state of PolicyManifest
+            description: PolicyExceptionSpec defines the desired state of PolicyException
             properties:
-              args:
+              policies:
+                description: Policies defines the list of policies to be excluded
                 items:
                   type: string
                 type: array
-              automatedExceptions:
+              targets:
+                description: Targes defines the list of target workloads where the
+                  exceptions will be applied
                 items:
                   description: Target defines a resource to which a PolicyException
                     applies
@@ -59,36 +63,12 @@ spec:
                   - namespaces
                   type: object
                 type: array
-              exceptions:
-                items:
-                  description: Target defines a resource to which a PolicyException
-                    applies
-                  properties:
-                    kind:
-                      type: string
-                    names:
-                      items:
-                        type: string
-                      type: array
-                    namespaces:
-                      items:
-                        type: string
-                      type: array
-                  required:
-                  - kind
-                  - names
-                  - namespaces
-                  type: object
-                type: array
-              mode:
-                description: Foo is an example field of PolicyManifest. Edit policymanifest_types.go
-                  to remove/update
-                type: string
             required:
-            - args
-            - automatedExceptions
-            - exceptions
-            - mode
+            - policies
+            - targets
+            type: object
+          status:
+            description: AutomatedExceptionStatus defines the observed state of AutomatedException
             type: object
         type: object
     served: true

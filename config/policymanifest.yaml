@@ -1,13 +1,26 @@
 apiVersion: policy.giantswarm.io/v1alpha1
 kind: PolicyManifest
 metadata:
-  name: require-trusted-image-registries
+  name: require-run-as-nonroot
   labels:
-    policy.giantswarm.io/policy: "require-trusted-image-registries"
+    policy.giantswarm.io/policy: "require-run-as-nonroot"
 spec:
   mode: "warning"
   args:
   - "arg1"
   - "arg2"
   - "argN"
-  exceptions: []
+  exceptions:
+  - kind: Deployment
+    namespaces:
+    - giantswarm
+    - kube-system
+    names:
+    - MyApp
+  automatedExceptions:
+  - kind: Deployment
+    namespaces:
+    - giantswarm
+    - kube-system
+    names:
+    - MyApp

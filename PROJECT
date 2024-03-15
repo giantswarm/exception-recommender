@@ -19,11 +19,19 @@ resources:
   version: v1alpha1
 - api:
     crdVersion: v1
-    namespaced: false
   controller: true
   domain: giantswarm.io
   group: policy
   kind: PolicyManifest
+  path: github.com/giantswarm/exception-recommender/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: giantswarm.io
+  group: policy
+  kind: AutomatedException
   path: github.com/giantswarm/exception-recommender/api/v1alpha1
   version: v1alpha1
 version: "3"

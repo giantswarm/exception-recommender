@@ -144,14 +144,6 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "PolicyReport")
 		os.Exit(1)
 	}
-	if err = (&controller.PolicyManifestReconciler{
-		Client:               mgr.GetClient(),
-		Scheme:               mgr.GetScheme(),
-		DestinationNamespace: destinationNamespace,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "PolicyManifest")
-		os.Exit(1)
-	}
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

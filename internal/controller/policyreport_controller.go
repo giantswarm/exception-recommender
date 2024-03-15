@@ -73,8 +73,10 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.Get(ctx, req.NamespacedName, &policyReport); err != nil {
 		// Error fetching the report
 		r.Log.Error(err, "unable to fetch PolicyReport")
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return ctrl.Result{}, nil
 	}
+
+	r.Log.Info(fmt.Sprintf("Reconciling PolicyReport %s/%s", policyReport.Namespace, policyReport.Name))
 
 	// Remove finalizers, we won't use them anymore
 	if controllerutil.ContainsFinalizer(&policyReport, ExceptionRecommenderFinalizer) {
@@ -99,6 +101,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
+	// Ignore report if kind is not part of TargetWorkloads
 	if !isKind(policyReport.Scope.Kind, r.TargetWorkloads) {
 		// Kind is not part of the targetWorkloads list, skip
 		return reconcile.Result{}, nil
@@ -110,16 +113,24 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// Check the result status and PolicyCategory
 		if isPolicyCategory(result.Category, r.TargetCategories) {
 
-			// Failed result, create or update PolicyExceptionDraft
+			// Failed result, create or update AutomatedException
 			if result.Result == "fail" {
-
-				if !resultIsPresent(result.Policy, failedPolicies) {
-					// Update map
-					failedPolicies = append(failedPolicies, result.Policy)
+				// Check if Policy is in warning mode or not
+				policyManifest := giantswarm.PolicyManifest{}
+				if err := r.Get(ctx, client.ObjectKey{Name: result.Policy}, &policyManifest); err != nil {
+					// Error fetching the policy
+					r.Log.Error(err, "unable to fetch PolicyManifest")
+					return ctrl.Result{}, client.IgnoreNotFound(err)
 				}
 
+				// Verify Policy mode
+				if policyManifest.Spec.Mode == "warning" {
+					if !resultIsPresent(result.Policy, failedPolicies) {
+						// Update map
+						failedPolicies = append(failedPolicies, result.Policy)
+					}
+				}
 			}
-
 		}
 	}
 
@@ -134,50 +145,50 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// Generate final Policy list
 	if len(failedPolicies) != 0 {
 
-		// Template PolicyExceptionDraft
-		polexDraft := giantswarm.PolicyExceptionDraft{}
+		// Template AutomatedException
+		automatedException := giantswarm.AutomatedException{}
 		// Set Name
-		polexDraft.Name = policyReport.Scope.Name + "-" + strings.ToLower(policyReport.Scope.Kind)
+		automatedException.Name = policyReport.Scope.Name + "-" + strings.ToLower(policyReport.Scope.Kind)
 		// Set Namespace
-		polexDraft.Namespace = namespace
+		automatedException.Namespace = namespace
 		// Set Labels
-		polexDraft.Labels = make(map[string]string)
-		polexDraft.Labels["app.kubernetes.io/managed-by"] = "exception-recommender"
-		polexDraft.Labels["policy.giantswarm.io/resource-name"] = policyReport.Scope.Name
-		polexDraft.Labels["policy.giantswarm.io/resource-namespace"] = policyReport.Scope.Namespace
-		polexDraft.Labels["policy.giantswarm.io/resource-kind"] = policyReport.Scope.Kind
+		automatedException.Labels = make(map[string]string)
+		automatedException.Labels["app.kubernetes.io/managed-by"] = "exception-recommender"
+		automatedException.Labels["policy.giantswarm.io/resource-name"] = policyReport.Scope.Name
+		automatedException.Labels["policy.giantswarm.io/resource-namespace"] = policyReport.Scope.Namespace
+		automatedException.Labels["policy.giantswarm.io/resource-kind"] = policyReport.Scope.Kind
 
 		// Set .Spec.Targets
-		polexDraft.Spec.Targets = generateTargets(*policyReport.Scope)
+		automatedException.Spec.Targets = generateTargets(*policyReport.Scope)
 
-		// Create or Update PolicyExceptionDraft
-		if op, err := ctrl.CreateOrUpdate(ctx, r.Client, &polexDraft, func() error {
+		// Create or Update AutomatedException
+		if op, err := ctrl.CreateOrUpdate(ctx, r.Client, &automatedException, func() error {
 			// Check if Policies changed
-			if !unorderedEqual(polexDraft.Spec.Policies, failedPolicies) {
+			if !unorderedEqual(automatedException.Spec.Policies, failedPolicies) {
 				// Set .Spec.Policies
-				polexDraft.Spec.Policies = failedPolicies
+				automatedException.Spec.Policies = failedPolicies
 			}
 			return nil
 		}); err != nil {
-			log.Log.Error(err, fmt.Sprintf("Reconciliation failed for PolicyExceptionDraft %s", polexDraft.Name))
+			log.Log.Error(err, fmt.Sprintf("Reconciliation failed for AutomatedException %s", automatedException.Name))
 		} else if op != "unchanged" {
-			log.Log.Info(fmt.Sprintf("%s PolicyExceptionDraft %s/%s", op, polexDraft.Namespace, polexDraft.Name))
+			log.Log.Info(fmt.Sprintf("%s AutomatedException %s/%s", op, automatedException.Namespace, automatedException.Name))
 		}
 	} else {
 		// Get current draft and delete it
-		// Delete PolicyExceptionDraft
-		polexDraft := giantswarm.PolicyExceptionDraft{
+		// Delete AutomatedException
+		automatedException := giantswarm.AutomatedException{
 			ObjectMeta: ctrl.ObjectMeta{
 				Name:      policyReport.Scope.Name + "-" + strings.ToLower(policyReport.Scope.Kind),
 				Namespace: namespace,
 			},
 		}
-		if err := r.Client.Delete(ctx, &polexDraft, &client.DeleteOptions{}); err != nil {
-			// Error deleting the PolicyExceptionDraft
-			r.Log.Error(err, "unable to delete PolicyExceptionDraft")
+		if err := r.Client.Delete(ctx, &automatedException, &client.DeleteOptions{}); err != nil {
+			// Error deleting the AutomatedException
+			r.Log.Error(err, "unable to delete AutomatedException")
 			return ctrl.Result{}, client.IgnoreNotFound(err)
 		} else {
-			log.Log.Info(fmt.Sprintf("Deleted PolicyExceptionDraft %s/%s because it doesn't have any failed results", polexDraft.Namespace, polexDraft.Name))
+			log.Log.Info(fmt.Sprintf("Deleted AutomatedException %s/%s because it doesn't have any failed results", automatedException.Namespace, automatedException.Name))
 		}
 	}
 

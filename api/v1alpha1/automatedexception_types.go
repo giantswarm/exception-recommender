@@ -21,35 +21,36 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// PolicyManifestSpec defines the desired state of PolicyManifest
-type PolicyManifestSpec struct {
-	// Foo is an example field of PolicyManifest. Edit policymanifest_types.go to remove/update
-	Mode                string            `json:"mode"`
-	Args                []string          `json:"args"`
-	Exceptions          []gsPolicy.Target `json:"exceptions"`
-	AutomatedExceptions []gsPolicy.Target `json:"automatedExceptions"`
+// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
+// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+
+// AutomatedExceptionStatus defines the observed state of AutomatedException
+type AutomatedExceptionStatus struct {
+	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+	// Important: Run "make" to regenerate code after modifying this file
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// PolicyManifest is the Schema for the policymanifests API
-type PolicyManifest struct {
+// AutomatedException is the Schema for the automatedexceptions API
+type AutomatedException struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec PolicyManifestSpec `json:"spec,omitempty"`
+	Spec   gsPolicy.PolicyExceptionSpec `json:"spec,omitempty"`
+	Status AutomatedExceptionStatus     `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// PolicyManifestList contains a list of PolicyManifest
-type PolicyManifestList struct {
+// AutomatedExceptionList contains a list of AutomatedException
+type AutomatedExceptionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []PolicyManifest `json:"items"`
+	Items           []AutomatedException `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&PolicyManifest{}, &PolicyManifestList{})
+	SchemeBuilder.Register(&AutomatedException{}, &AutomatedExceptionList{})
 }

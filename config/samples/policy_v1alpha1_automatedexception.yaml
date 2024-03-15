@@ -1,0 +1,12 @@
+apiVersion: policy.giantswarm.io/v1alpha1
+kind: AutomatedException
+metadata:
+  labels:
+    app.kubernetes.io/name: automatedexception
+    app.kubernetes.io/instance: automatedexception-sample
+    app.kubernetes.io/part-of: exception-recommender
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: exception-recommender
+  name: automatedexception-sample
+spec:
+  # TODO(user): Add fields here
