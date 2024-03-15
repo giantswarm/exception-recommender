@@ -23,7 +23,6 @@ import (
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
-	gsPolicy "github.com/giantswarm/kyverno-policy-operator/api/v1alpha1"
 	kyverno "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -50,10 +49,6 @@ func init() {
 	err := kyverno.AddToScheme(scheme)
 	if err != nil {
 		setupLog.Error(err, "unable to register kyverno schema")
-	}
-	err = gsPolicy.AddToScheme(scheme)
-	if err != nil {
-		setupLog.Error(err, "unable to register Giant Swarm Policy schema")
 	}
 
 	utilruntime.Must(securityv1alpha1.AddToScheme(scheme))
