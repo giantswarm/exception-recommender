@@ -136,8 +136,10 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				}
 				// Check Policy mode
 				if policyManifest.Spec.Mode == "warning" {
-					// Add it to the list of failed policies
-					failedPolicies = append(failedPolicies, result.Policy)
+					// Add it to the list of failed policies if it isn't already
+					if !resultIsPresent(result.Policy, failedPolicies) {
+						failedPolicies = append(failedPolicies, result.Policy)
+					}
 				}
 			}
 		}
@@ -236,15 +238,15 @@ func generateTargets(resource corev1.ObjectReference) []gsPolicy.Target {
 	return targets
 }
 
-// func resultIsPresent(result string, failedResults []string) bool {
-// 	for _, failedResult := range failedResults {
-// 		if failedResult == result {
-// 			// Already exists, return true
-// 			return true
-// 		}
-// 	}
-// 	return false
-// }
+func resultIsPresent(result string, failedResults []string) bool {
+	for _, failedResult := range failedResults {
+		if failedResult == result {
+			// Already exists, return true
+			return true
+		}
+	}
+	return false
+}
 
 func isKind(resourceKind string, targetWorloads []string) bool {
 	// Checks if the resource matches the kind in targetWorkloads
