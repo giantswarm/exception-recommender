@@ -1,0 +1,80 @@
+apiVersion: policy.giantswarm.io/v1alpha1
+kind: PolicyManifest
+metadata:
+  name: require-run-as-nonroot
+  labels:
+    policy.giantswarm.io/policy: "require-run-as-nonroot"
+spec:
+  mode: "warning"
+  args:
+  - "arg1"
+  - "arg2"
+  - "argN"
+  exceptions:
+  - kind: Deployment
+    namespaces:
+    - giantswarm
+    - kube-system
+    names:
+    - MyApp
+  automatedExceptions:
+  - kind: Deployment
+    namespaces:
+    - giantswarm
+    - kube-system
+    names:
+    - MyApp
+---
+apiVersion: policy.giantswarm.io/v1alpha1
+kind: PolicyManifest
+metadata:
+  name: disallow-capabilities-strict
+  labels:
+    policy.giantswarm.io/policy: "disallow-capabilities-strict"
+spec:
+  mode: "warning"
+  args:
+  - "arg1"
+  - "arg2"
+  - "argN"
+  exceptions:
+  - kind: Deployment
+    namespaces:
+    - giantswarm
+    - kube-system
+    names:
+    - MyApp
+  automatedExceptions:
+  - kind: Deployment
+    namespaces:
+    - giantswarm
+    - kube-system
+    names:
+    - MyApp
+---
+apiVersion: policy.giantswarm.io/v1alpha1
+kind: PolicyManifest
+metadata:
+  name: restrict-seccomp-strict
+  labels:
+    policy.giantswarm.io/policy: "restrict-seccomp-strict"
+spec:
+  mode: "enforcement"
+  args:
+  - "arg1"
+  - "arg2"
+  - "argN"
+  exceptions:
+  - kind: Deployment
+    namespaces:
+    - giantswarm
+    - kube-system
+    names:
+    - MyApp
+  automatedExceptions:
+  - kind: Deployment
+    namespaces:
+    - giantswarm
+    - kube-system
+    names:
+    - MyApp
