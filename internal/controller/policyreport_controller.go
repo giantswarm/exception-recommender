@@ -36,11 +36,18 @@ import (
 
 	gsPolicy "github.com/giantswarm/kyverno-policy-operator/api/v1alpha1"
 
+	"github.com/giantswarm/exception-recommender/api/v1alpha1"
 	giantswarm "github.com/giantswarm/exception-recommender/api/v1alpha1"
 )
 
 const (
 	ExceptionRecommenderFinalizer = "policy.giantswarm.io/exception-recommender"
+	ManifestExpectedMode          = "warming"
+	ComponentName                 = "exception-recommender"
+	AppLabelName                  = "app.kubernetes.io/name"
+	KindLabelName                 = "policy.giantswarm.io/resource-kind"
+	NamespaceLabelName            = "policy.giantswarm.io/resource-namespace"
+	NameLabelName                 = "policy.giantswarm.io/resource-name"
 )
 
 // PolicyReportReconciler reconciles a PolicyReport object
@@ -58,15 +65,6 @@ type PolicyReportReconciler struct {
 //+kubebuilder:rbac:groups=kyverno.io.giantswarm.io,resources=policyreports/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=kyverno.io.giantswarm.io,resources=policyreports/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the PolicyReport object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
 func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 	_ = r.Log.WithValues("policyreport", req.NamespacedName)
@@ -74,12 +72,12 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	var policyReport policyreport.PolicyReport
 
 	if err := r.Get(ctx, req.NamespacedName, &policyReport); err != nil {
-		// Error fetching the report
-		log.Log.Error(err, "unable to fetch PolicyReport")
+		if !errors.IsNotFound(err) {
+			// Error fetching the report
+			log.Log.Error(err, "unable to fetch PolicyReport")
+		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-
-	// log.Log.Info(fmt.Sprintf("Reconciling PolicyReport %s/%s", policyReport.Namespace, policyReport.Name))
 
 	// Remove finalizers, we won't use them anymore
 	if controllerutil.ContainsFinalizer(&policyReport, ExceptionRecommenderFinalizer) {
@@ -135,7 +133,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 					return ctrl.Result{}, client.IgnoreNotFound(err)
 				}
 				// Check Policy mode
-				if policyManifest.Spec.Mode == "warning" {
+				if policyManifest.Spec.Mode == ManifestExpectedMode {
 					// Add it to the list of failed policies if it isn't already
 					if !resultIsPresent(result.Policy, failedPolicies) {
 						failedPolicies = append(failedPolicies, result.Policy)
@@ -157,33 +155,23 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if len(failedPolicies) != 0 {
 
 		// Template AutomatedException
-		automatedException := giantswarm.AutomatedException{}
-		// Set Name
-		automatedException.Name = policyReport.Scope.Name + "-" + strings.ToLower(policyReport.Scope.Kind)
-		// Set Namespace
-		automatedException.Namespace = namespace
-		// Set Labels
-		automatedException.Labels = make(map[string]string)
-		automatedException.Labels["app.kubernetes.io/managed-by"] = "exception-recommender"
-		automatedException.Labels["policy.giantswarm.io/resource-name"] = policyReport.Scope.Name
-		automatedException.Labels["policy.giantswarm.io/resource-namespace"] = policyReport.Scope.Namespace
-		automatedException.Labels["policy.giantswarm.io/resource-kind"] = policyReport.Scope.Kind
-
-		// Set .Spec.Targets
-		automatedException.Spec.Targets = generateTargets(*policyReport.Scope)
+		automatedException := templateAutomatedException(policyReport, failedPolicies, namespace)
 
 		// Create or Update AutomatedException
-		if op, err := ctrl.CreateOrUpdate(ctx, r.Client, &automatedException, func() error {
-			// Check if Policies changed
-			if !unorderedEqual(automatedException.Spec.Policies, failedPolicies) {
-				// Set .Spec.Policies
-				automatedException.Spec.Policies = failedPolicies
+		c := Controller{r.Client}
+		if op, err := c.CreateOrUpdate(ctx, &automatedException); err != nil {
+			// Error creating or updating AutomatedException
+			log.Log.Error(err, "unable to create or update AutomatedException")
+			return ctrl.Result{}, client.IgnoreNotFound(err)
+		} else {
+			switch {
+			case op == "create":
+				log.Log.Info(fmt.Sprintf("Created AutomatedException %s/%s", automatedException.Namespace, automatedException.Name))
+			case op == "update":
+				log.Log.Info(fmt.Sprintf("Updated AutomatedException %s/%s", automatedException.Namespace, automatedException.Name))
+			case op == "untouched":
+				log.Log.Info(fmt.Sprintf("AutomatedException %s/%s is up to date", automatedException.Namespace, automatedException.Name))
 			}
-			return nil
-		}); err != nil {
-			log.Log.Error(err, fmt.Sprintf("Reconciliation failed for AutomatedException %s", automatedException.Name))
-		} else if op != "unchanged" {
-			log.Log.Info(fmt.Sprintf("%s AutomatedException %s/%s", op, automatedException.Namespace, automatedException.Name))
 		}
 	} else {
 		// Get current draft and delete it
@@ -206,23 +194,52 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	return ctrl.Result{}, nil
 }
 
-func unorderedEqual(want, got []string) bool {
-	// Return false if lenghts are not the same
-	if len(want) != len(got) {
-		return false
-	}
-	// Create map
-	exists := make(map[string]bool)
-	for _, value := range want {
-		exists[value] = true
-	}
-	// Compare values
-	for _, value := range got {
-		if !exists[value] {
-			return false
-		}
-	}
-	return true
+// func unorderedEqual(want, got []string) bool {
+// 	// Return false if lenghts are not the same
+// 	if len(want) != len(got) {
+// 		return false
+// 	}
+// 	// Create map
+// 	exists := make(map[string]bool)
+// 	for _, value := range want {
+// 		exists[value] = true
+// 	}
+// 	// Compare values
+// 	for _, value := range got {
+// 		if !exists[value] {
+// 			return false
+// 		}
+// 	}
+// 	return true
+// }
+
+func templateAutomatedException(policyReport policyreport.PolicyReport, failedPolicies []string, namespace string) giantswarm.AutomatedException {
+	// Template AutomatedException
+	automatedException := giantswarm.AutomatedException{}
+	// Set GrpupVersionKind
+	automatedException.SetGroupVersionKind(v1alpha1.GroupVersion.WithKind("AutomatedException"))
+	// Set Name
+	automatedException.Name = policyReport.Scope.Name + "-" + strings.ToLower(policyReport.Scope.Kind)
+	// Set Namespace
+	automatedException.Namespace = namespace
+	// Set Labels
+	automatedException.Labels = generateLabels(*policyReport.Scope)
+	// Set .Spec.Targets
+	automatedException.Spec.Targets = generateTargets(*policyReport.Scope)
+	// Set .Spec.Policies
+	automatedException.Spec.Policies = failedPolicies
+
+	return automatedException
+}
+
+func generateLabels(resource corev1.ObjectReference) map[string]string {
+	labelMap := make(map[string]string)
+	labelMap[AppLabelName] = ComponentName
+	labelMap[NameLabelName] = resource.Name
+	labelMap[NamespaceLabelName] = resource.Namespace
+	labelMap[KindLabelName] = resource.Kind
+
+	return labelMap
 }
 
 func generateTargets(resource corev1.ObjectReference) []gsPolicy.Target {
