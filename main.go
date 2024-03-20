@@ -63,6 +63,8 @@ func main() {
 	var targetWorkloads []string
 	var targetCategories []string
 	var excludeNamespaces []string
+	policyManifestCache := make(map[string]securityv1alpha1.PolicyManifest)
+
 	// Flags
 	flag.StringVar(&destinationNamespace, "destination-namespace", "", "The namespace where the PolicyExceptionDrafts will be created. Defaults to resource namespace.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
@@ -137,6 +139,14 @@ func main() {
 		ExcludeNamespaces:    excludeNamespaces,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "PolicyReport")
+		os.Exit(1)
+	}
+	if err = (&controller.PolicyManifestReconciler{
+		Client:              mgr.GetClient(),
+		Scheme:              mgr.GetScheme(),
+		PolicyManifestCache: policyManifestCache,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "PolicyManifest")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
