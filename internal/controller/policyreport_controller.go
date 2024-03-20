@@ -116,7 +116,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 			// Failed result, create or update AutomatedException
 			if result.Result == "fail" {
-				// Check if Policy is in warning mode or not
+				// Check if Policy is in warming mode or not
 				log.Log.Info(fmt.Sprintf("Policy %s has failed for %s/%s", result.Policy, policyReport.Scope.Kind, policyReport.Scope.Name))
 				var policyManifest giantswarm.PolicyManifest
 				policyName := types.NamespacedName{Namespace: "", Name: result.Policy}
