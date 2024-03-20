@@ -23,10 +23,8 @@ import (
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
 
 	policyreport "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -34,20 +32,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	gsPolicy "github.com/giantswarm/kyverno-policy-operator/api/v1alpha1"
-
 	"github.com/giantswarm/exception-recommender/api/v1alpha1"
-	giantswarm "github.com/giantswarm/exception-recommender/api/v1alpha1"
+	exceptionutils "github.com/giantswarm/exception-recommender/internal/utils"
 )
 
 const (
 	ExceptionRecommenderFinalizer = "policy.giantswarm.io/exception-recommender"
 	ManifestExpectedMode          = "warming"
-	ComponentName                 = "exception-recommender"
-	AppLabelName                  = "app.kubernetes.io/name"
-	KindLabelName                 = "policy.giantswarm.io/resource-kind"
-	NamespaceLabelName            = "policy.giantswarm.io/resource-namespace"
-	NameLabelName                 = "policy.giantswarm.io/resource-name"
 )
 
 // PolicyReportReconciler reconciles a PolicyReport object
@@ -57,6 +48,7 @@ type PolicyReportReconciler struct {
 	Log                  logr.Logger
 	ExcludeNamespaces    []string
 	DestinationNamespace string
+	PolicyManifestCache  map[string]v1alpha1.PolicyManifest
 	TargetWorkloads      []string
 	TargetCategories     []string
 }
@@ -109,6 +101,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	var failedPolicies []string
+	failure := false
 
 	for _, result := range policyReport.Results {
 		// Check the result status and PolicyCategory
@@ -118,26 +111,17 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			if result.Result == "fail" {
 				// Check if Policy is in warming mode or not
 				log.Log.Info(fmt.Sprintf("Policy %s has failed for %s/%s", result.Policy, policyReport.Scope.Kind, policyReport.Scope.Name))
-				var policyManifest giantswarm.PolicyManifest
-				policyName := types.NamespacedName{Namespace: "", Name: result.Policy}
 
-				if err := r.Get(ctx, policyName, &policyManifest); err != nil {
-					if errors.IsNotFound(err) {
-						// PolicyManifest not found, continue
-						log.Log.Info(fmt.Sprintf("PolicyManifest %s not found, skipping", policyName.String()))
-						continue
-					}
-
-					// Other errors
-					log.Log.Error(err, "unable to fetch PolicyManifest")
-					return ctrl.Result{}, client.IgnoreNotFound(err)
-				}
-				// Check Policy mode
-				if policyManifest.Spec.Mode == ManifestExpectedMode {
+				// Check Policy mode from cache
+				policyManifestMode := GetPolicyManifestMode(result.Policy, r.PolicyManifestCache)
+				if policyManifestMode == ManifestExpectedMode {
 					// Add it to the list of failed policies if it isn't already
 					if !resultIsPresent(result.Policy, failedPolicies) {
 						failedPolicies = append(failedPolicies, result.Policy)
 					}
+				} else if policyManifestMode == "" {
+					// Requeue when finished
+					failure = true
 				}
 			}
 		}
@@ -155,7 +139,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if len(failedPolicies) != 0 {
 
 		// Template AutomatedException
-		automatedException := templateAutomatedException(policyReport, failedPolicies, namespace)
+		automatedException := exceptionutils.TemplateAutomatedException(policyReport, failedPolicies, namespace)
 
 		// Create or Update AutomatedException
 		c := Controller{r.Client}
@@ -165,18 +149,20 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return ctrl.Result{}, client.IgnoreNotFound(err)
 		} else {
 			switch {
-			case op == "create":
+			case op == "created":
 				log.Log.Info(fmt.Sprintf("Created AutomatedException %s/%s", automatedException.Namespace, automatedException.Name))
-			case op == "update":
+				// Add metric for added AutomatedException
+			case op == "updated":
 				log.Log.Info(fmt.Sprintf("Updated AutomatedException %s/%s", automatedException.Namespace, automatedException.Name))
-			case op == "untouched":
+			case op == "unchanged":
+				// This log is mainly for debugging, it should not be seen in stable release
 				log.Log.Info(fmt.Sprintf("AutomatedException %s/%s is up to date", automatedException.Namespace, automatedException.Name))
 			}
 		}
 	} else {
 		// Get current draft and delete it
 		// Delete AutomatedException
-		automatedException := giantswarm.AutomatedException{
+		automatedException := v1alpha1.AutomatedException{
 			ObjectMeta: ctrl.ObjectMeta{
 				Name:      policyReport.Scope.Name + "-" + strings.ToLower(policyReport.Scope.Kind),
 				Namespace: namespace,
@@ -184,75 +170,21 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 		if err := r.Client.Delete(ctx, &automatedException, &client.DeleteOptions{}); err != nil {
 			// Error deleting the AutomatedException
-			r.Log.Error(err, "unable to delete AutomatedException")
+			if !errors.IsNotFound(err) {
+				log.Log.Error(err, "unable to delete AutomatedException")
+			}
 			return ctrl.Result{}, client.IgnoreNotFound(err)
 		} else {
 			log.Log.Info(fmt.Sprintf("Deleted AutomatedException %s/%s because it doesn't have any failed results", automatedException.Namespace, automatedException.Name))
 		}
 	}
 
+	if failure {
+		// Requeue due to failure without errors
+		return reconcile.Result{Requeue: true}, nil
+	}
+
 	return ctrl.Result{}, nil
-}
-
-// func unorderedEqual(want, got []string) bool {
-// 	// Return false if lenghts are not the same
-// 	if len(want) != len(got) {
-// 		return false
-// 	}
-// 	// Create map
-// 	exists := make(map[string]bool)
-// 	for _, value := range want {
-// 		exists[value] = true
-// 	}
-// 	// Compare values
-// 	for _, value := range got {
-// 		if !exists[value] {
-// 			return false
-// 		}
-// 	}
-// 	return true
-// }
-
-func templateAutomatedException(policyReport policyreport.PolicyReport, failedPolicies []string, namespace string) giantswarm.AutomatedException {
-	// Template AutomatedException
-	automatedException := giantswarm.AutomatedException{}
-	// Set GrpupVersionKind
-	automatedException.SetGroupVersionKind(v1alpha1.GroupVersion.WithKind("AutomatedException"))
-	// Set Name
-	automatedException.Name = policyReport.Scope.Name + "-" + strings.ToLower(policyReport.Scope.Kind)
-	// Set Namespace
-	automatedException.Namespace = namespace
-	// Set Labels
-	automatedException.Labels = generateLabels(*policyReport.Scope)
-	// Set .Spec.Targets
-	automatedException.Spec.Targets = generateTargets(*policyReport.Scope)
-	// Set .Spec.Policies
-	automatedException.Spec.Policies = failedPolicies
-
-	return automatedException
-}
-
-func generateLabels(resource corev1.ObjectReference) map[string]string {
-	labelMap := make(map[string]string)
-	labelMap[AppLabelName] = ComponentName
-	labelMap[NameLabelName] = resource.Name
-	labelMap[NamespaceLabelName] = resource.Namespace
-	labelMap[KindLabelName] = resource.Kind
-
-	return labelMap
-}
-
-func generateTargets(resource corev1.ObjectReference) []gsPolicy.Target {
-	var targets []gsPolicy.Target
-
-	targets = append(targets, gsPolicy.Target{
-		Namespaces: []string{resource.Namespace},
-		Names:      []string{resource.Name + "*"},
-		Kind:       resource.Kind,
-	},
-	)
-
-	return targets
 }
 
 func resultIsPresent(result string, failedResults []string) bool {

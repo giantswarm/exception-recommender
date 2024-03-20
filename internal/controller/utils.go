@@ -3,9 +3,18 @@ package controller
 import (
 	"context"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	ErrorOp  = "error"
+	UpdateOp = "updated"
+	NoOp     = "unchanged"
+	CreateOp = "created"
 )
 
 type Controller struct {
@@ -21,16 +30,35 @@ func (r *Controller) CreateOrUpdate(ctx context.Context, obj client.Object) (str
 	err := r.Get(ctx, client.ObjectKeyFromObject(obj), &existingObj)
 	switch {
 	case err == nil:
+		// Create a deep copy of the existing object before the patch operation
+		existingBeforePatch := existingObj.DeepCopy()
+
 		// Update:
 		obj.SetResourceVersion(existingObj.GetResourceVersion())
 		obj.SetUID(existingObj.GetUID())
+
 		err = r.Patch(ctx, obj, client.MergeFrom(existingObj.DeepCopy()))
-		return "update", err
+		if err != nil {
+			return ErrorOp, err
+		}
+
+		// Fetch the object after the patch operation
+		err = r.Get(ctx, client.ObjectKeyFromObject(obj), &existingObj)
+		if err != nil {
+			return ErrorOp, err
+		}
+
+		// Compare the object before and after the patch operation
+		if equality.Semantic.DeepEqual(existingBeforePatch.Object, existingObj.Object) {
+			return NoOp, nil
+		} else {
+			return UpdateOp, nil
+		}
 	case errors.IsNotFound(err):
 		// Create:
 		err = r.Create(ctx, obj)
-		return "create", err
+		return CreateOp, err
 	default:
-		return "untouched", err
+		return ErrorOp, err
 	}
 }
