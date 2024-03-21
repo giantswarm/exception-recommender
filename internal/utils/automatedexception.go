@@ -21,7 +21,7 @@ const (
 func TemplateAutomatedException(policyReport policyreport.PolicyReport, failedPolicies []string, namespace string) v1alpha1.AutomatedException {
 	// Template AutomatedException
 	automatedException := v1alpha1.AutomatedException{}
-	// Set GrpupVersionKind
+	// Set GroupVersionKind
 	automatedException.SetGroupVersionKind(v1alpha1.GroupVersion.WithKind("AutomatedException"))
 	// Set Name
 	automatedException.Name = policyReport.Scope.Name + "-" + strings.ToLower(policyReport.Scope.Kind)
