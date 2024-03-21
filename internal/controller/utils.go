@@ -57,6 +57,9 @@ func (r *Controller) CreateOrUpdate(ctx context.Context, obj client.Object) (str
 	case errors.IsNotFound(err):
 		// Create:
 		err = r.Create(ctx, obj)
+		if err != nil {
+			return ErrorOp, err
+		}
 		return CreateOp, err
 	default:
 		return ErrorOp, err
