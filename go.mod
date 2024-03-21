@@ -72,3 +72,9 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+replace github.com/go-jose/go-jose/v3 v3.0.1 => github.com/go-jose/go-jose/v3 v3.0.3
+
+replace github.com/lestrrat-go/jwx/v2 v2.0.16 => github.com/lestrrat-go/jwx/v2 v2.0.21
+
+replace google.golang.org/protobuf v1.32.0 => google.golang.org/protobuf v1.33.0
