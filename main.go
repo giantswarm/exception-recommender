@@ -137,6 +137,7 @@ func main() {
 		TargetCategories:     targetCategories,
 		DestinationNamespace: destinationNamespace,
 		ExcludeNamespaces:    excludeNamespaces,
+		PolicyManifestCache:  policyManifestCache,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "PolicyReport")
 		os.Exit(1)
