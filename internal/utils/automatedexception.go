@@ -52,7 +52,7 @@ func generateTargets(resource corev1.ObjectReference) []gsPolicy.Target {
 
 	targets = append(targets, gsPolicy.Target{
 		Namespaces: []string{resource.Namespace},
-		Names:      []string{resource.Name + "*"},
+		Names:      []string{resource.Name},
 		Kind:       resource.Kind,
 	},
 	)
