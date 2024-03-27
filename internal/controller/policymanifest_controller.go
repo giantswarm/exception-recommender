@@ -48,6 +48,8 @@ func (r *PolicyManifestReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		if !errors.IsNotFound(err) {
 			// Error fetching the report
 			log.Log.Error(err, "unable to fetch PolicyManifest")
+			// Add metric for failed PolicyManifest reconciliation
+			PolmanReconciliationFailures.Inc()
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
