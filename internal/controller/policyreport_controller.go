@@ -28,7 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -70,19 +69,6 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			log.Log.Error(err, "unable to fetch PolicyReport")
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-
-	// Remove finalizers, we won't use them anymore
-	if controllerutil.ContainsFinalizer(&policyReport, ExceptionRecommenderFinalizer) {
-		controllerutil.RemoveFinalizer(&policyReport, ExceptionRecommenderFinalizer)
-		// Update object
-		if err := r.Update(ctx, &policyReport); err != nil {
-			return reconcile.Result{}, err
-		}
-		// Exit unless the report is being deleted, we don't want duplicates from requeuing
-		if policyReport.ObjectMeta.DeletionTimestamp.IsZero() {
-			return reconcile.Result{}, nil
-		}
 	}
 
 	// Ignore report if namespace is excluded
