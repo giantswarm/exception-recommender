@@ -67,6 +67,8 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if !errors.IsNotFound(err) {
 			// Error fetching the report
 			log.Log.Error(err, "unable to fetch PolicyReport")
+			// Add metric for failed PolicyReport reconciliation
+			PolrReconciliationFailures.Inc()
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
