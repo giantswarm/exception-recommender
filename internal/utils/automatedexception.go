@@ -1,8 +1,6 @@
 package exceptionutils
 
 import (
-	"strings"
-
 	gsPolicy "github.com/giantswarm/kyverno-policy-operator/api/v1alpha1"
 	policyreport "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
 	corev1 "k8s.io/api/core/v1"
@@ -23,8 +21,8 @@ func TemplateAutomatedException(policyReport policyreport.PolicyReport, failedPo
 	automatedException := v1alpha1.AutomatedException{}
 	// Set GroupVersionKind
 	automatedException.SetGroupVersionKind(v1alpha1.GroupVersion.WithKind("AutomatedException"))
-	// Set Name
-	automatedException.Name = policyReport.Scope.Name + "-" + strings.ToLower(policyReport.Scope.Kind)
+	// Set report UID as Name
+	automatedException.Name = string(policyReport.UID)
 	// Set Namespace
 	automatedException.Namespace = namespace
 	// Set Labels
