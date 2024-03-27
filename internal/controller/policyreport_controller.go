@@ -22,8 +22,9 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/api/errors"
+
 	policyreport "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,13 +32,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	gsPolicy "github.com/giantswarm/kyverno-policy-operator/api/v1alpha1"
-
-	giantswarm "github.com/giantswarm/exception-recommender/api/v1alpha1"
+	"github.com/giantswarm/exception-recommender/api/v1alpha1"
+	exceptionutils "github.com/giantswarm/exception-recommender/internal/utils"
 )
 
 const (
 	ExceptionRecommenderFinalizer = "policy.giantswarm.io/exception-recommender"
+	ManifestExpectedMode          = "warming"
 )
 
 // PolicyReportReconciler reconciles a PolicyReport object
@@ -47,6 +48,7 @@ type PolicyReportReconciler struct {
 	Log                  logr.Logger
 	ExcludeNamespaces    []string
 	DestinationNamespace string
+	PolicyManifestCache  map[string]v1alpha1.PolicyManifest
 	TargetWorkloads      []string
 	TargetCategories     []string
 }
@@ -55,15 +57,6 @@ type PolicyReportReconciler struct {
 //+kubebuilder:rbac:groups=kyverno.io.giantswarm.io,resources=policyreports/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=kyverno.io.giantswarm.io,resources=policyreports/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the PolicyReport object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
 func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 	_ = r.Log.WithValues("policyreport", req.NamespacedName)
@@ -71,8 +64,10 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	var policyReport policyreport.PolicyReport
 
 	if err := r.Get(ctx, req.NamespacedName, &policyReport); err != nil {
-		// Error fetching the report
-		r.Log.Error(err, "unable to fetch PolicyReport")
+		if !errors.IsNotFound(err) {
+			// Error fetching the report
+			log.Log.Error(err, "unable to fetch PolicyReport")
+		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
@@ -99,27 +94,36 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
+	// Ignore report if kind is not part of TargetWorkloads
 	if !isKind(policyReport.Scope.Kind, r.TargetWorkloads) {
 		// Kind is not part of the targetWorkloads list, skip
 		return reconcile.Result{}, nil
 	}
 
 	var failedPolicies []string
+	failure := false
 
 	for _, result := range policyReport.Results {
 		// Check the result status and PolicyCategory
 		if isPolicyCategory(result.Category, r.TargetCategories) {
 
-			// Failed result, create or update PolicyExceptionDraft
+			// Failed result, create or update AutomatedException
 			if result.Result == "fail" {
+				// Check if Policy is in warming mode or not
+				log.Log.Info(fmt.Sprintf("Policy %s has failed for %s/%s", result.Policy, policyReport.Scope.Kind, policyReport.Scope.Name))
 
-				if !resultIsPresent(result.Policy, failedPolicies) {
-					// Update map
-					failedPolicies = append(failedPolicies, result.Policy)
+				// Check Policy mode from cache
+				policyManifestMode := GetPolicyManifestMode(result.Policy, r.PolicyManifestCache)
+				if policyManifestMode == ManifestExpectedMode {
+					// Add it to the list of failed policies if it isn't already
+					if !resultIsPresent(result.Policy, failedPolicies) {
+						failedPolicies = append(failedPolicies, result.Policy)
+					}
+				} else if policyManifestMode == "" {
+					// Requeue when finished
+					failure = true
 				}
-
 			}
-
 		}
 	}
 
@@ -134,86 +138,53 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// Generate final Policy list
 	if len(failedPolicies) != 0 {
 
-		// Template PolicyExceptionDraft
-		polexDraft := giantswarm.PolicyExceptionDraft{}
-		// Set Name
-		polexDraft.Name = policyReport.Scope.Name + "-" + strings.ToLower(policyReport.Scope.Kind)
-		// Set Namespace
-		polexDraft.Namespace = namespace
-		// Set Labels
-		polexDraft.Labels = make(map[string]string)
-		polexDraft.Labels["app.kubernetes.io/managed-by"] = "exception-recommender"
-		polexDraft.Labels["policy.giantswarm.io/resource-name"] = policyReport.Scope.Name
-		polexDraft.Labels["policy.giantswarm.io/resource-namespace"] = policyReport.Scope.Namespace
-		polexDraft.Labels["policy.giantswarm.io/resource-kind"] = policyReport.Scope.Kind
+		// Template AutomatedException
+		automatedException := exceptionutils.TemplateAutomatedException(policyReport, failedPolicies, namespace)
 
-		// Set .Spec.Targets
-		polexDraft.Spec.Targets = generateTargets(*policyReport.Scope)
-
-		// Create or Update PolicyExceptionDraft
-		if op, err := ctrl.CreateOrUpdate(ctx, r.Client, &polexDraft, func() error {
-			// Check if Policies changed
-			if !unorderedEqual(polexDraft.Spec.Policies, failedPolicies) {
-				// Set .Spec.Policies
-				polexDraft.Spec.Policies = failedPolicies
+		// Create or Update AutomatedException
+		c := Controller{r.Client}
+		if op, err := c.CreateOrUpdate(ctx, &automatedException); err != nil {
+			// Error creating or updating AutomatedException
+			log.Log.Error(err, "unable to create or update AutomatedException")
+			return ctrl.Result{}, client.IgnoreNotFound(err)
+		} else {
+			switch {
+			case op == "created":
+				log.Log.Info(fmt.Sprintf("Created AutomatedException %s/%s", automatedException.Namespace, automatedException.Name))
+				// Add metric for added AutomatedException
+			case op == "updated":
+				log.Log.Info(fmt.Sprintf("Updated AutomatedException %s/%s", automatedException.Namespace, automatedException.Name))
+			case op == "unchanged":
+				// This log is mainly for debugging, it should not be seen in stable release
+				log.Log.Info(fmt.Sprintf("AutomatedException %s/%s is up to date", automatedException.Namespace, automatedException.Name))
 			}
-			return nil
-		}); err != nil {
-			log.Log.Error(err, fmt.Sprintf("Reconciliation failed for PolicyExceptionDraft %s", polexDraft.Name))
-		} else if op != "unchanged" {
-			log.Log.Info(fmt.Sprintf("%s PolicyExceptionDraft %s/%s", op, polexDraft.Namespace, polexDraft.Name))
 		}
 	} else {
 		// Get current draft and delete it
-		// Delete PolicyExceptionDraft
-		polexDraft := giantswarm.PolicyExceptionDraft{
+		// Delete AutomatedException
+		automatedException := v1alpha1.AutomatedException{
 			ObjectMeta: ctrl.ObjectMeta{
 				Name:      policyReport.Scope.Name + "-" + strings.ToLower(policyReport.Scope.Kind),
 				Namespace: namespace,
 			},
 		}
-		if err := r.Client.Delete(ctx, &polexDraft, &client.DeleteOptions{}); err != nil {
-			// Error deleting the PolicyExceptionDraft
-			r.Log.Error(err, "unable to delete PolicyExceptionDraft")
+		if err := r.Client.Delete(ctx, &automatedException, &client.DeleteOptions{}); err != nil {
+			// Error deleting the AutomatedException
+			if !errors.IsNotFound(err) {
+				log.Log.Error(err, "unable to delete AutomatedException")
+			}
 			return ctrl.Result{}, client.IgnoreNotFound(err)
 		} else {
-			log.Log.Info(fmt.Sprintf("Deleted PolicyExceptionDraft %s/%s because it doesn't have any failed results", polexDraft.Namespace, polexDraft.Name))
+			log.Log.Info(fmt.Sprintf("Deleted AutomatedException %s/%s because it doesn't have any failed results", automatedException.Namespace, automatedException.Name))
 		}
+	}
+
+	if failure {
+		// Requeue due to failure without errors
+		return reconcile.Result{Requeue: true}, nil
 	}
 
 	return ctrl.Result{}, nil
-}
-
-func unorderedEqual(want, got []string) bool {
-	// Return false if lenghts are not the same
-	if len(want) != len(got) {
-		return false
-	}
-	// Create map
-	exists := make(map[string]bool)
-	for _, value := range want {
-		exists[value] = true
-	}
-	// Compare values
-	for _, value := range got {
-		if !exists[value] {
-			return false
-		}
-	}
-	return true
-}
-
-func generateTargets(resource corev1.ObjectReference) []gsPolicy.Target {
-	var targets []gsPolicy.Target
-
-	targets = append(targets, gsPolicy.Target{
-		Namespaces: []string{resource.Namespace},
-		Names:      []string{resource.Name + "*"},
-		Kind:       resource.Kind,
-	},
-	)
-
-	return targets
 }
 
 func resultIsPresent(result string, failedResults []string) bool {
