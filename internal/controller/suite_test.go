@@ -99,14 +99,14 @@ var _ = BeforeSuite(func() {
 	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme: scheme.Scheme,
 	})
-	Expect(err).ToNot(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred())
 
 	err = (&PolicyManifestReconciler{
 		Client:              k8sManager.GetClient(),
 		Scheme:              k8sManager.GetScheme(),
 		PolicyManifestCache: policyManifestCache,
 	}).SetupWithManager(k8sManager)
-	Expect(err).ToNot(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred())
 
 	err = (&PolicyReportReconciler{
 		Client:               k8sManager.GetClient(),
@@ -116,12 +116,12 @@ var _ = BeforeSuite(func() {
 		TargetCategories:     targetCategories,
 		PolicyManifestCache:  policyManifestCache,
 	}).SetupWithManager(k8sManager)
-	Expect(err).ToNot(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred())
 
 	go func() {
 		defer GinkgoRecover()
 		err = k8sManager.Start(ctx)
-		Expect(err).ToNot(HaveOccurred(), "failed to run manager")
+		Expect(err).NotTo(HaveOccurred(), "failed to run manager")
 	}()
 
 })
@@ -133,6 +133,5 @@ var _ = AfterSuite(func() {
 		time.Sleep(5 * time.Second)
 	}
 	err = testEnv.Stop()
-
 	Expect(err).NotTo(HaveOccurred())
 })
