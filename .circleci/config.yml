@@ -32,6 +32,7 @@ workflows:
           name: push-to-registries
           requires:
             - go-build
+            - unit-tests
           filters:
             tags:
               only: /^v.*/
@@ -40,6 +41,9 @@ workflows:
           context: "architect"
           executor: "app-build-suite"
           name: "package and push exception-recommender chart"
+          requires:
+            - go-build
+            - push-to-registries
           app_catalog: "giantswarm-catalog"
           app_catalog_test: "giantswarm-test-catalog"
           chart: "exception-recommender"
@@ -52,6 +56,9 @@ workflows:
           context: "architect"
           executor: "app-build-suite"
           name: push-exception-recommender-chart-to-control-plane-catalog
+          requires:
+            - go-build
+            - push-to-registries
           app_catalog: "control-plane-catalog"
           app_catalog_test: "control-plane-test-catalog"
           chart: "exception-recommender"
