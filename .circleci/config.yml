@@ -2,9 +2,23 @@ version: 2.1
 orbs:
   architect: giantswarm/architect@5.1.1
 
+jobs:
+  unit-tests:
+    executor: architect/architect
+    steps:
+      - checkout
+      - run:
+          name: "Run unit tests"
+          command: CGO_ENABLED=0 make test-unit
+
 workflows:
   package-and-push-chart-on-tag:
     jobs:
+      - unit-tests:
+          filters:
+            tags:
+              only: /^v.*/
+
       - architect/go-build:
           name: go-build
           binary: exception-recommender
