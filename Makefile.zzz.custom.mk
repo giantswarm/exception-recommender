@@ -9,7 +9,8 @@ $(LOCALBIN):
 
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 
-.PHONY: test
 test: ## Runs go test with default values.
 	@echo "====> $@"
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -ldflags "$(LDFLAGS)" -race ./...
+
+$(SOURCES): test
