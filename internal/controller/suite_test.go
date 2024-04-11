@@ -20,7 +20,6 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
@@ -139,10 +138,9 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
-	err := testEnv.Stop()
-	if err != nil {
-		time.Sleep(5 * time.Second)
+	if testEnv == nil {
+		return
 	}
-	err = testEnv.Stop()
+	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
