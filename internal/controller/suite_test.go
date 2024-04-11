@@ -20,6 +20,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
@@ -142,5 +143,8 @@ var _ = AfterSuite(func() {
 		return
 	}
 	err := testEnv.Stop()
+	if err != nil {
+		time.Sleep(5 * time.Second)
+	}
 	Expect(err).NotTo(HaveOccurred())
 })
