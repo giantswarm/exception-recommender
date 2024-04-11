@@ -22,16 +22,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"go.uber.org/zap/zapcore"
 
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	tests "github.com/giantswarm/exception-recommender/tests"
 
 	wgpolicyk8s "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
 
@@ -43,7 +46,7 @@ import (
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
-
+var logger logr.Logger
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
@@ -61,7 +64,15 @@ func TestControllers(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	opts := zap.Options{
+		DestWriter:  GinkgoWriter,
+		Development: true,
+		TimeEncoder: zapcore.RFC3339TimeEncoder,
+	}
+
+	logger = zap.New(zap.UseFlagOptions(&opts))
+
+	tests.GetEnvOrSkip("KUBEBUILDER_ASSETS")
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
