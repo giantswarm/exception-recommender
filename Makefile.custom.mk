@@ -30,6 +30,6 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
-test-unit: envtest ginkgo fmt vet  ## Run unit tests
+test-unit: envtest  ## Run unit tests
 	@echo "====> $@"
 	f="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" $(GINKGO) -p --nodes 4 -r -randomize-all --randomize-suites --skip-package=tests --cover --coverpkg=`go list ./... | grep -v fakes | tr '\n' ','` ./...
