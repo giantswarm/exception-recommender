@@ -146,5 +146,6 @@ var _ = AfterSuite(func() {
 	if err != nil {
 		time.Sleep(5 * time.Second)
 	}
+	err = testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
