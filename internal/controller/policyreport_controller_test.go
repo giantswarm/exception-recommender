@@ -30,9 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	giantswarmPolicy "github.com/giantswarm/kyverno-policy-operator/api/v1alpha1"
-
-	exceptionRecommender "github.com/giantswarm/exception-recommender/api/v1alpha1"
+	policyAPI "github.com/giantswarm/policy-api/api/v1alpha1"
 )
 
 var _ = Describe("PolicyReport controller", func() {
@@ -98,7 +96,7 @@ var _ = Describe("PolicyReport controller", func() {
 			}
 
 			// Create Giant Swarm PolicyManifest
-			policyManifest := &exceptionRecommender.PolicyManifest{
+			policyManifest := &policyAPI.PolicyManifest{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "policy.giantswarm.io/v1alpha1",
 					Kind:       "PolicyManifest",
@@ -106,12 +104,12 @@ var _ = Describe("PolicyReport controller", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: PolicyName,
 				},
-				Spec: exceptionRecommender.PolicyManifestSpec{
+				Spec: policyAPI.PolicyManifestSpec{
 					Mode: PolicyManifestMode,
 					// The following fields are not necessary for this test, so they are omitted
 					Args:                []string{},
-					Exceptions:          []giantswarmPolicy.Target{},
-					AutomatedExceptions: []giantswarmPolicy.Target{},
+					Exceptions:          []policyAPI.Target{},
+					AutomatedExceptions: []policyAPI.Target{},
 				},
 			}
 
@@ -121,7 +119,7 @@ var _ = Describe("PolicyReport controller", func() {
 
 		// TODO: Replace name with UID
 		automatedExceptionLookupKey := types.NamespacedName{Name: AutomatedExceptionName, Namespace: destinationNamespace}
-		automatedException := exceptionRecommender.AutomatedException{}
+		automatedException := policyAPI.AutomatedException{}
 
 		When("a PolicyReport is created", func() {
 			It("must create a Giant Swarm AutomatedException", func() {

@@ -38,9 +38,7 @@ import (
 
 	wgpolicyk8s "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
 
-	giantswarmKPO "github.com/giantswarm/kyverno-policy-operator/api/v1alpha1"
-
-	giantswarmPolicy "github.com/giantswarm/exception-recommender/api/v1alpha1"
+	policyAPI "github.com/giantswarm/policy-api/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -54,7 +52,7 @@ var ctx context.Context
 var cancel context.CancelFunc
 var targetCategories = []string{"Pod Security Standards (Restricted)"}
 var targetWorkloads = []string{"Deployment"}
-var policyManifestCache = make(map[string]giantswarmPolicy.PolicyManifest)
+var policyManifestCache = make(map[string]policyAPI.PolicyManifest)
 var destinationNamespace = "default"
 
 func TestControllers(t *testing.T) {
@@ -90,11 +88,11 @@ var _ = BeforeSuite(func() {
 	Expect(cfg).NotTo(BeNil())
 
 	// Add exception-recommender scheme
-	err = giantswarmPolicy.AddToScheme(scheme.Scheme)
+	err = policyAPI.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	// Add kyverno-policy-operator scheme
-	err = giantswarmKPO.AddToScheme(scheme.Scheme)
+	err = policyAPI.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	// Add wgpolicyk8s scheme

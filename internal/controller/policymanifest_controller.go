@@ -27,7 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/giantswarm/exception-recommender/api/v1alpha1"
+	policyAPI "github.com/giantswarm/policy-api/api/v1alpha1"
 )
 
 // PolicyManifestReconciler reconciles a PolicyManifest object
@@ -35,14 +35,14 @@ type PolicyManifestReconciler struct {
 	client.Client
 	Scheme              *runtime.Scheme
 	Log                 logr.Logger
-	PolicyManifestCache map[string]v1alpha1.PolicyManifest
+	PolicyManifestCache map[string]policyAPI.PolicyManifest
 }
 
 func (r *PolicyManifestReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 	_ = r.Log.WithValues("policymanifest", req.NamespacedName)
 
-	var policyManifest v1alpha1.PolicyManifest
+	var policyManifest policyAPI.PolicyManifest
 
 	if err := r.Get(ctx, req.NamespacedName, &policyManifest); err != nil {
 		if !errors.IsNotFound(err) {
@@ -63,12 +63,12 @@ func (r *PolicyManifestReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	return ctrl.Result{}, nil
 }
 
-func GetPolicyManifestMode(policyName string, cache map[string]v1alpha1.PolicyManifest) string {
+func GetPolicyManifestMode(policyName string, cache map[string]policyAPI.PolicyManifest) string {
 	// Get the PolicyManifest from the cache
 	policyManifest := cache[policyName]
 
 	// Check if PolicyManifest is not empty
-	if reflect.DeepEqual(policyManifest, v1alpha1.PolicyManifest{}) {
+	if reflect.DeepEqual(policyManifest, policyAPI.PolicyManifest{}) {
 		return ""
 	}
 
@@ -78,6 +78,6 @@ func GetPolicyManifestMode(policyName string, cache map[string]v1alpha1.PolicyMa
 // SetupWithManager sets up the controller with the Manager.
 func (r *PolicyManifestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.PolicyManifest{}).
+		For(&policyAPI.PolicyManifest{}).
 		Complete(r)
 }
