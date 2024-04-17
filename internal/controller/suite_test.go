@@ -87,11 +87,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	// Add exception-recommender scheme
-	err = policyAPI.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-
-	// Add kyverno-policy-operator scheme
+	// Add Policy API scheme
 	err = policyAPI.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
