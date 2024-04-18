@@ -51,7 +51,7 @@ func generateTargets(resource corev1.ObjectReference) []policyAPI.Target {
 
 	targets = append(targets, policyAPI.Target{
 		Namespaces: []string{resource.Namespace},
-		Names:      []string{resource.Name + "*"},
+		Names:      []string{resource.Name},
 		Kind:       resource.Kind,
 	},
 	)
