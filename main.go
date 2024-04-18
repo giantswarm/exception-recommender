@@ -33,7 +33,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	securityv1alpha1 "github.com/giantswarm/exception-recommender/api/v1alpha1"
+	policyAPI "github.com/giantswarm/policy-api/api/v1alpha1"
+
 	"github.com/giantswarm/exception-recommender/internal/controller"
 	//+kubebuilder:scaffold:imports
 )
@@ -51,7 +52,7 @@ func init() {
 		setupLog.Error(err, "unable to register kyverno schema")
 	}
 
-	utilruntime.Must(securityv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(policyAPI.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -63,7 +64,7 @@ func main() {
 	var targetWorkloads []string
 	var targetCategories []string
 	var excludeNamespaces []string
-	policyManifestCache := make(map[string]securityv1alpha1.PolicyManifest)
+	policyManifestCache := make(map[string]policyAPI.PolicyManifest)
 
 	// Flags
 	flag.StringVar(&destinationNamespace, "destination-namespace", "", "The namespace where the PolicyExceptionDrafts will be created. Defaults to resource namespace.")

@@ -27,7 +27,7 @@ resources:
   version: v1alpha1
 - api:
     crdVersion: v1
-    namespaced: true
+    namespaced: false
   domain: giantswarm.io
   group: policy
   kind: PolicyManifest

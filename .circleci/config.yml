@@ -2,9 +2,23 @@ version: 2.1
 orbs:
   architect: giantswarm/architect@5.1.1
 
+jobs:
+  unit-tests:
+    executor: architect/architect
+    steps:
+      - checkout
+      - run:
+          name: "Run unit tests"
+          command: CGO_ENABLED=0 make test-unit
+
 workflows:
   package-and-push-chart-on-tag:
     jobs:
+      - unit-tests:
+          filters:
+            tags:
+              only: /^v.*/
+
       - architect/go-build:
           name: go-build
           binary: exception-recommender
@@ -18,6 +32,7 @@ workflows:
           name: push-to-registries
           requires:
             - go-build
+            - unit-tests
           filters:
             tags:
               only: /^v.*/
@@ -26,6 +41,9 @@ workflows:
           context: "architect"
           executor: "app-build-suite"
           name: "package and push exception-recommender chart"
+          requires:
+            - go-build
+            - push-to-registries
           app_catalog: "giantswarm-catalog"
           app_catalog_test: "giantswarm-test-catalog"
           chart: "exception-recommender"
@@ -38,6 +56,9 @@ workflows:
           context: "architect"
           executor: "app-build-suite"
           name: push-exception-recommender-chart-to-control-plane-catalog
+          requires:
+            - go-build
+            - push-to-registries
           app_catalog: "control-plane-catalog"
           app_catalog_test: "control-plane-test-catalog"
           chart: "exception-recommender"

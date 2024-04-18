@@ -3,11 +3,10 @@ package exceptionutils
 import (
 	"strings"
 
-	gsPolicy "github.com/giantswarm/kyverno-policy-operator/api/v1alpha1"
 	policyreport "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/giantswarm/exception-recommender/api/v1alpha1"
+	policyAPI "github.com/giantswarm/policy-api/api/v1alpha1"
 )
 
 const (
@@ -18,11 +17,11 @@ const (
 	NameLabelName      = "policy.giantswarm.io/resource-name"
 )
 
-func TemplateAutomatedException(policyReport policyreport.PolicyReport, failedPolicies []string, namespace string) v1alpha1.AutomatedException {
+func TemplateAutomatedException(policyReport policyreport.PolicyReport, failedPolicies []string, namespace string) policyAPI.AutomatedException {
 	// Template AutomatedException
-	automatedException := v1alpha1.AutomatedException{}
+	automatedException := policyAPI.AutomatedException{}
 	// Set GroupVersionKind
-	automatedException.SetGroupVersionKind(v1alpha1.GroupVersion.WithKind("AutomatedException"))
+	automatedException.SetGroupVersionKind(policyAPI.GroupVersion.WithKind("AutomatedException"))
 	// Set Name
 	automatedException.Name = policyReport.Scope.Name + "-" + strings.ToLower(policyReport.Scope.Kind)
 	// Set Namespace
@@ -47,10 +46,10 @@ func generateLabels(resource corev1.ObjectReference) map[string]string {
 	return labelMap
 }
 
-func generateTargets(resource corev1.ObjectReference) []gsPolicy.Target {
-	var targets []gsPolicy.Target
+func generateTargets(resource corev1.ObjectReference) []policyAPI.Target {
+	var targets []policyAPI.Target
 
-	targets = append(targets, gsPolicy.Target{
+	targets = append(targets, policyAPI.Target{
 		Namespaces: []string{resource.Namespace},
 		Names:      []string{resource.Name + "*"},
 		Kind:       resource.Kind,

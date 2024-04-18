@@ -31,6 +31,8 @@ type PolicyManifestSpec struct {
 }
 
 //+kubebuilder:object:root=true
+//+kubebuilder:resource:shortName=polman,scope=Cluster
+//+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
 // PolicyManifest is the Schema for the policymanifests API

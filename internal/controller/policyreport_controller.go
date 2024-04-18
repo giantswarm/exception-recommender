@@ -32,7 +32,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/giantswarm/exception-recommender/api/v1alpha1"
+	policyAPI "github.com/giantswarm/policy-api/api/v1alpha1"
+
 	exceptionutils "github.com/giantswarm/exception-recommender/internal/utils"
 )
 
@@ -48,7 +49,7 @@ type PolicyReportReconciler struct {
 	Log                  logr.Logger
 	ExcludeNamespaces    []string
 	DestinationNamespace string
-	PolicyManifestCache  map[string]v1alpha1.PolicyManifest
+	PolicyManifestCache  map[string]policyAPI.PolicyManifest
 	TargetWorkloads      []string
 	TargetCategories     []string
 }
@@ -162,7 +163,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	} else {
 		// Get current draft and delete it
 		// Delete AutomatedException
-		automatedException := v1alpha1.AutomatedException{
+		automatedException := policyAPI.AutomatedException{
 			ObjectMeta: ctrl.ObjectMeta{
 				Name:      policyReport.Scope.Name + "-" + strings.ToLower(policyReport.Scope.Kind),
 				Namespace: namespace,
