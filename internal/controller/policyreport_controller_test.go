@@ -117,8 +117,7 @@ var _ = Describe("PolicyReport controller", func() {
 			Expect(k8sClient.Create(ctx, policyReport)).Should(Succeed())
 		})
 
-		// TODO: Replace name with UID
-		automatedExceptionLookupKey := types.NamespacedName{Name: AutomatedExceptionName, Namespace: destinationNamespace}
+		automatedExceptionLookupKey := types.NamespacedName{Name: ResourceUID, Namespace: destinationNamespace}
 		automatedException := policyAPI.AutomatedException{}
 
 		When("a PolicyReport is created", func() {
