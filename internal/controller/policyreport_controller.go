@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -182,10 +183,10 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	if failure {
 		// Requeue due to failure without errors
-		return reconcile.Result{Requeue: true}, nil
+		return reconcile.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{Requeue: true, RequeueAfter: 5 * time.Minute}, nil
 }
 
 func resultIsPresent(result string, failedResults []string) bool {

@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"reflect"
+	"time"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -60,7 +61,7 @@ func (r *PolicyManifestReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		r.PolicyManifestCache[policyManifest.Name] = policyManifest
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{Requeue: true, RequeueAfter: 15 * time.Minute}, nil
 }
 
 func GetPolicyManifestMode(policyName string, cache map[string]policyAPI.PolicyManifest) string {
