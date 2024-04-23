@@ -41,6 +41,7 @@ type PolicyManifestReconciler struct {
 func (r *PolicyManifestReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 	_ = r.Log.WithValues("policymanifest", req.NamespacedName)
+	reconcilerResourceType := "PolicyManifest"
 
 	var policyManifest policyAPI.PolicyManifest
 
@@ -48,8 +49,8 @@ func (r *PolicyManifestReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		if !errors.IsNotFound(err) {
 			// Error fetching the report
 			log.Log.Error(err, "unable to fetch PolicyManifest")
-			// Add metric for failed PolicyManifest reconciliation
-			PolmanReconciliationFailures.Inc()
+			// Metric for failed PolicyManifest reconciliation
+			ReconciliationFailuresMetric.WithLabelValues(reconcilerResourceType).Inc()
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}

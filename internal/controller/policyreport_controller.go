@@ -60,6 +60,7 @@ type PolicyReportReconciler struct {
 func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 	_ = r.Log.WithValues("policyreport", req.NamespacedName)
+	reconcilerResourceType := "PolicyReport"
 
 	var policyReport policyreport.PolicyReport
 
@@ -68,7 +69,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			// Error fetching the report
 			log.Log.Error(err, "unable to fetch PolicyReport")
 			// Add metric for failed PolicyReport reconciliation
-			PolrReconciliationFailures.Inc()
+			ReconciliationFailuresMetric.WithLabelValues(reconcilerResourceType).Inc()
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -140,7 +141,6 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			switch {
 			case op == "created":
 				log.Log.Info(fmt.Sprintf("Created AutomatedException %s/%s", automatedException.Namespace, automatedException.Name))
-				// Add metric for added AutomatedException
 			case op == "updated":
 				log.Log.Info(fmt.Sprintf("Updated AutomatedException %s/%s", automatedException.Namespace, automatedException.Name))
 			case op == "unchanged":
