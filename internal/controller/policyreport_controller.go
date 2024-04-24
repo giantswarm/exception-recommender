@@ -28,7 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -61,6 +60,7 @@ type PolicyReportReconciler struct {
 func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 	_ = r.Log.WithValues("policyreport", req.NamespacedName)
+	reconcilerResourceType := "PolicyReport"
 
 	var policyReport policyreport.PolicyReport
 
@@ -68,21 +68,10 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if !errors.IsNotFound(err) {
 			// Error fetching the report
 			log.Log.Error(err, "unable to fetch PolicyReport")
+			// Add metric for failed PolicyReport reconciliation
+			ReconciliationFailuresMetric.WithLabelValues(reconcilerResourceType).Inc()
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-
-	// Remove finalizers, we won't use them anymore
-	if controllerutil.ContainsFinalizer(&policyReport, ExceptionRecommenderFinalizer) {
-		controllerutil.RemoveFinalizer(&policyReport, ExceptionRecommenderFinalizer)
-		// Update object
-		if err := r.Update(ctx, &policyReport); err != nil {
-			return reconcile.Result{}, err
-		}
-		// Exit unless the report is being deleted, we don't want duplicates from requeuing
-		if policyReport.ObjectMeta.DeletionTimestamp.IsZero() {
-			return reconcile.Result{}, nil
-		}
 	}
 
 	// Ignore report if namespace is excluded
@@ -152,7 +141,6 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			switch {
 			case op == "created":
 				log.Log.Info(fmt.Sprintf("Created AutomatedException %s/%s", automatedException.Namespace, automatedException.Name))
-				// Add metric for added AutomatedException
 			case op == "updated":
 				log.Log.Info(fmt.Sprintf("Updated AutomatedException %s/%s", automatedException.Namespace, automatedException.Name))
 			case op == "unchanged":
