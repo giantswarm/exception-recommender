@@ -28,6 +28,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	policyAPI "github.com/giantswarm/policy-api/api/v1alpha1"
+
+	utils "github.com/giantswarm/exception-recommender/internal/utils"
 )
 
 // PolicyManifestReconciler reconciles a PolicyManifest object
@@ -36,6 +38,7 @@ type PolicyManifestReconciler struct {
 	Scheme              *runtime.Scheme
 	Log                 logr.Logger
 	PolicyManifestCache map[string]policyAPI.PolicyManifest
+	MaxJitterPercent    int
 }
 
 func (r *PolicyManifestReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -63,7 +66,7 @@ func (r *PolicyManifestReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		r.PolicyManifestCache[policyManifest.Name] = policyManifest
 	}
 
-	return ctrl.Result{}, nil
+	return utils.JitterRequeue(DefaultRequeueDuration, r.MaxJitterPercent, r.Log), nil
 }
 
 func GetPolicyManifestMode(policyName string, cache map[string]policyAPI.PolicyManifest) string {
