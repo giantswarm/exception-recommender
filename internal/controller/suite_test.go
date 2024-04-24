@@ -54,6 +54,7 @@ var targetCategories = []string{"Pod Security Standards (Restricted)"}
 var targetWorkloads = []string{"Deployment"}
 var policyManifestCache = make(map[string]policyAPI.PolicyManifest)
 var destinationNamespace = "default"
+var maxJitterPercent = 10
 
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -110,6 +111,7 @@ var _ = BeforeSuite(func() {
 		Client:              k8sManager.GetClient(),
 		Scheme:              k8sManager.GetScheme(),
 		PolicyManifestCache: policyManifestCache,
+		MaxJitterPercent:    maxJitterPercent,
 	}).SetupWithManager(k8sManager)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -120,6 +122,7 @@ var _ = BeforeSuite(func() {
 		TargetWorkloads:      targetWorkloads,
 		TargetCategories:     targetCategories,
 		PolicyManifestCache:  policyManifestCache,
+		MaxJitterPercent:     maxJitterPercent,
 	}).SetupWithManager(k8sManager)
 	Expect(err).NotTo(HaveOccurred())
 
