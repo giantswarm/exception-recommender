@@ -1,4 +1,4 @@
-package exceptionutils
+package utils
 
 import (
 	policyreport "github.com/kyverno/kyverno/api/policyreport/v1alpha2"

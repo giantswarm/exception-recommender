@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -9,6 +10,9 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// Used for Jitter in requeueing
+var DefaultRequeueDuration = (time.Minute * 5)
 
 const (
 	ErrorOp  = "error"

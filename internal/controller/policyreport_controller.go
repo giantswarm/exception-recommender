@@ -35,7 +35,7 @@ import (
 
 	policyAPI "github.com/giantswarm/policy-api/api/v1alpha1"
 
-	exceptionutils "github.com/giantswarm/exception-recommender/internal/utils"
+	utils "github.com/giantswarm/exception-recommender/internal/utils"
 )
 
 const (
@@ -53,6 +53,7 @@ type PolicyReportReconciler struct {
 	PolicyManifestCache  map[string]policyAPI.PolicyManifest
 	TargetWorkloads      []string
 	TargetCategories     []string
+	MaxJitterPercent     int
 }
 
 //+kubebuilder:rbac:groups=kyverno.io.giantswarm.io,resources=policyreports,verbs=get;list;watch;create;update;patch;delete
@@ -141,7 +142,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if len(failedPolicies) != 0 {
 
 		// Template AutomatedException
-		automatedException := exceptionutils.TemplateAutomatedException(policyReport, failedPolicies, namespace)
+		automatedException := utils.TemplateAutomatedException(policyReport, failedPolicies, namespace)
 
 		// Create or Update AutomatedException
 		c := Controller{r.Client}
@@ -183,10 +184,10 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	if failure {
 		// Requeue due to failure without errors
-		return reconcile.Result{Requeue: true, RequeueAfter: 30 * time.Second}, nil
+		return reconcile.Result{Requeue: true, RequeueAfter: 15 * time.Second}, nil
 	}
 
-	return ctrl.Result{Requeue: true, RequeueAfter: 5 * time.Minute}, nil
+	return utils.JitterRequeue(DefaultRequeueDuration, r.MaxJitterPercent, r.Log), nil
 }
 
 func resultIsPresent(result string, failedResults []string) bool {
