@@ -3,7 +3,7 @@ module github.com/giantswarm/exception-recommender
 go 1.21.6
 
 require (
-	github.com/giantswarm/policy-api v0.0.0-20240417210147-d47ea9eb220d
+	github.com/giantswarm/policy-api v0.0.0-20240425141349-58e378f7f59f
 	github.com/go-logr/logr v1.4.1
 	github.com/google/uuid v1.6.0
 	github.com/kyverno/kyverno v1.11.4
