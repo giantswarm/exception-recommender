@@ -1,15 +1,17 @@
 # DO NOT EDIT. Generated with:
 #
-#    devctl@6.20.2
+#    devctl
 #
-name: Fix Vulnerabilities
+#    https://github.com/giantswarm/devctl/blob/00856517283b245af5fa81ca6a551f9411b12f71/pkg/gen/input/workflows/internal/file/fix_vulnerabilities.yaml.template
+#
+name: Remediate Nancy findings
 on:
   schedule:
-    - cron: '0 9 * * 1-5'
+    - cron: '0 9 * * 3'
   workflow_dispatch:
     inputs:
       branch:
-        description: "Branch on which to fix vulnerabilities"
+        description: "Branch on which to remediate Nancy findings"
         required: true
         type: string
   workflow_call:
@@ -22,11 +24,11 @@ jobs:
     name: Gather facts
     runs-on: ubuntu-22.04
     outputs:
-      branch: ${{ steps.gather_facts.outputs.head }}
+      branch: ${{ steps.gather_facts.outputs.branch }}
       skip : ${{ steps.gather_facts.outputs.skip }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           ref: ${{ inputs.branch || github.ref }}
       - name: Gather facts
@@ -51,7 +53,7 @@ jobs:
           echo "skip=${skip}" >> $GITHUB_OUTPUT
           echo "head=\"$head\" branch=\"$branch\" skip=\"$skip\""
   run_nancy_fixer:
-    name: Fix vulnerabilities with nancy-fixer
+    name: Remediate vulnerabilities with nancy-fixer
     runs-on: ubuntu-22.04
     needs:
       - gather_facts
@@ -59,26 +61,37 @@ jobs:
     steps:
       - name: Generate a token
         id: generate_token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@7bfa3a4717ef143a604ee0a99d859b8886a96d00 # v1.9.3
         with:
           app-id: ${{ secrets.HERALD_APP_ID }}
           private-key: ${{ secrets.HERALD_APP_KEY }}
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           token: ${{ steps.generate_token.outputs.token }}
           persist-credentials: false
           ref: ${{ needs.gather_facts.outputs.branch }}
+          fetch-depth: 0
       - name: Create new branch
         id: create_branch
         run: |
           branch="remediate-vulnerabilities-${{ needs.gather_facts.outputs.branch }}"
           echo "branch=${branch}" >> $GITHUB_OUTPUT
-          git checkout -b "${branch}"
-          git pull origin "${branch}" || true
+
+          git fetch origin ${branch} || true
+
+          # Check if branch exists
+          if [ -z $(git rev-parse --verify origin/$branch 2>/dev/null) ]
+          then
+            # Branch doesn't exist, create it
+            git checkout -b $branch
+          else
+            # Branch exists, use existing
+            git checkout $branch
+          fi
       - name: Run nancy-fixer fix
-        uses: docker://gsoci.azurecr.io/giantswarm/nancy-fixer:0.4.3
-        timeout-minutes: 20
+        uses: docker://gsoci.azurecr.io/giantswarm/nancy-fixer@sha256:ee673c9bbdb6b4bba64ebd4e001b1033e7c6b7cb2907df92269a2ef0a87610f9 # v0.4.4
+        timeout-minutes: 15
       - name: Set up git identity
         run: |
           git config --local user.email "149080493+heraldbot[bot]@users.noreply.github.com"
@@ -91,7 +104,7 @@ jobs:
             echo "No changes found"
             skip=true
           else
-            git commit -m "Remediate Nancy findings"
+            git commit -m "Remediate Nancy findings on branch ${{ needs.gather_facts.outputs.branch }}"
             skip=false
           fi
           echo "skip=${skip}" >> $GITHUB_OUTPUT
@@ -106,5 +119,13 @@ jobs:
           GITHUB_TOKEN: "${{ steps.generate_token.outputs.token }}"
         if: "${{ steps.commit_changes.outputs.skip != 'true' }}"
         run: |
-          gh pr create --title "Remediate Nancy findings on ${{ needs.gather_facts.outputs.branch }}" --body "Fix Nancy findings on branch ${{ needs.gather_facts.outputs.branch }}" --head ${{ steps.create_branch.outputs.branch }} --base "${{ needs.gather_facts.outputs.branch }}"
+          body="## Description
+
+          * Remediate Nancy findings on branch ${{ needs.gather_facts.outputs.branch }}
+
+          ---
+          > [!NOTE]
+          > This PR was created by the **Remediate Vulnerabilities** workflow. Make sure all tests pass before approving.
+          "
+          gh pr create --title "Remediate Nancy findings on ${{ needs.gather_facts.outputs.branch }}" --body "${body}" --head "${{ steps.create_branch.outputs.branch }}" --base "${{ needs.gather_facts.outputs.branch }}"
           gh pr merge --auto --squash
