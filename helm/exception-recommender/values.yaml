@@ -6,7 +6,7 @@ global:
     registry: "gsoci.azurecr.io"
   # Install PSPs
   podSecurityStandards:
-    enforced: false
+    enforced: true
 
 cleanupJob:
   enabled: true
@@ -21,7 +21,7 @@ image:
 
 # We install CRDs through a Job with the helm specific crd folder.
 crds:
-  install: true
+  install: false
   image:
     tag: "1.27.4"
   resources:
