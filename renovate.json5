@@ -5,4 +5,14 @@
     // Go specific config - https://github.com/giantswarm/renovate-presets/blob/main/lang-go.json5
     "github>giantswarm/renovate-presets:lang-go.json5",
   ],
+  "packageRules": [
+    {
+      "description": "Automerge architect updates",
+      "matchFileNames": [".circleci/config.yml"],
+      "matchDepNames": ["architect"],
+      "groupName": "Architect updates",
+      "automerge": true,
+      "autoApprove": true
+    }
+  ],
 }
