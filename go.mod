@@ -1,14 +1,14 @@
 module github.com/giantswarm/exception-recommender
 
-go 1.22.0
+go 1.22.7
 
-toolchain go1.23.0
+toolchain go1.23.2
 
 require (
 	github.com/giantswarm/policy-api v0.0.5
 	github.com/go-logr/logr v1.4.2
 	github.com/google/uuid v1.6.0
-	github.com/kyverno/kyverno v1.12.1
+	github.com/kyverno/kyverno v1.12.6
 	github.com/onsi/ginkgo/v2 v2.20.2
 	github.com/onsi/gomega v1.34.2
 	github.com/prometheus/client_golang v1.20.2
