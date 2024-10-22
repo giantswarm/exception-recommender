@@ -65,11 +65,11 @@ func TestControllers(t *testing.T) {
 var _ = BeforeSuite(func() {
 	opts := zap.Options{
 		DestWriter:  GinkgoWriter,
-		Development: true,
+		Development: false,
 		TimeEncoder: zapcore.RFC3339TimeEncoder,
 	}
 
-	logger = zap.New(zap.UseFlagOptions(&opts))
+	logger = zap.New(zap.UseFlagOptions(&opts), zap.UseDevMode(true))
 
 	tests.GetEnvOrSkip("KUBEBUILDER_ASSETS")
 

@@ -57,7 +57,7 @@ var _ = Describe("PolicyReport controller", func() {
 
 	Describe("reconciling a PolicyReport", Ordered, func() {
 		BeforeAll(func() {
-			logger := zap.New(zap.WriteTo(GinkgoWriter))
+			logger := zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true))
 			ctx = log.IntoContext(context.Background(), logger)
 
 			// Create PolicyReport
