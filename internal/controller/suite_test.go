@@ -65,7 +65,7 @@ func TestControllers(t *testing.T) {
 var _ = BeforeSuite(func() {
 	opts := zap.Options{
 		DestWriter:  GinkgoWriter,
-		Development: true,
+		Development: false,
 		TimeEncoder: zapcore.RFC3339TimeEncoder,
 	}
 

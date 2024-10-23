@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Disable logger development mode to avoid panicking
 - Disable PSPs and CRD install job.
 
 ## [0.1.1] - 2024-02-07
