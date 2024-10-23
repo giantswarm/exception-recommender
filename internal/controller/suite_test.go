@@ -69,7 +69,7 @@ var _ = BeforeSuite(func() {
 		TimeEncoder: zapcore.RFC3339TimeEncoder,
 	}
 
-	logger = zap.New(zap.UseFlagOptions(&opts), zap.UseDevMode(true))
+	logger = zap.New(zap.UseFlagOptions(&opts))
 
 	tests.GetEnvOrSkip("KUBEBUILDER_ASSETS")
 
