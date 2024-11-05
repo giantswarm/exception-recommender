@@ -6,129 +6,141 @@ jobs:
   unit-tests:
     executor: architect/architect
     steps:
-      - checkout
-      - run:
-          name: "Run unit tests"
-          command: CGO_ENABLED=0 make test-unit
+    - checkout
+    - run:
+        name: Run unit tests
+        command: CGO_ENABLED=0 make test-unit
 
 workflows:
   package-and-push-chart-on-tag:
     jobs:
-      - unit-tests:
-          filters:
-            tags:
-              only: /^v.*/
+    - unit-tests:
+        filters:
+          tags:
+            only: /^v.*/
 
-      - architect/go-build:
-          name: go-build
-          binary: exception-recommender
-          resource_class: large
-          filters:
-            tags:
-              only: /^v.*/
+    - architect/go-build:
+        name: go-build
+        binary: exception-recommender
+        resource_class: large
+        filters:
+          tags:
+            only: /^v.*/
 
-      - architect/push-to-registries:
-          context: architect
-          name: push-to-registries
-          requires:
-            - go-build
-            - unit-tests
-          filters:
-            tags:
-              only: /^v.*/
+    - architect/push-to-registries:
+        context: architect
+        name: push-to-registries
+        requires:
+        - go-build
+        - unit-tests
+        filters:
+          tags:
+            only: /^v.*/
+          branches:
+            ignore:
+            - main
+            - master
 
-      - architect/push-to-app-catalog:
-          context: "architect"
-          executor: "app-build-suite"
-          name: "package and push exception-recommender chart"
-          requires:
-            - go-build
-            - push-to-registries
-          app_catalog: "giantswarm-catalog"
-          app_catalog_test: "giantswarm-test-catalog"
-          chart: "exception-recommender"
+    - architect/push-to-app-catalog:
+        context: architect
+        executor: app-build-suite
+        name: package and push exception-recommender chart
+        requires:
+        - go-build
+        - push-to-registries
+        app_catalog: giantswarm-catalog
+        app_catalog_test: giantswarm-test-catalog
+        chart: exception-recommender
           # Trigger job on git tag.
-          filters:
-            tags:
-              only: /^v.*/
+        filters:
+          tags:
+            only: /^v.*/
+          branches:
+            ignore:
+            - main
+            - master
 
-      - architect/push-to-app-catalog:
-          context: "architect"
-          executor: "app-build-suite"
-          name: push-exception-recommender-chart-to-control-plane-catalog
-          requires:
-            - go-build
-            - push-to-registries
-          app_catalog: "control-plane-catalog"
-          app_catalog_test: "control-plane-test-catalog"
-          chart: "exception-recommender"
+    - architect/push-to-app-catalog:
+        context: architect
+        executor: app-build-suite
+        name: push-exception-recommender-chart-to-control-plane-catalog
+        requires:
+        - go-build
+        - push-to-registries
+        app_catalog: control-plane-catalog
+        app_catalog_test: control-plane-test-catalog
+        chart: exception-recommender
           # Trigger job on git tag.
-          filters:
-            tags:
-              only: /^v.*/
+        filters:
+          tags:
+            only: /^v.*/
+          branches:
+            ignore:
+            - main
+            - master
 
       # Push to collections
-      - architect/push-to-app-collection:
-          name: aws-app-collection
-          context: "architect"
-          app_name: "exception-recommender"
-          app_collection_repo: "aws-app-collection"
-          requires:
-            - push-exception-recommender-chart-to-control-plane-catalog
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v.*/
+    - architect/push-to-app-collection:
+        name: aws-app-collection
+        context: architect
+        app_name: exception-recommender
+        app_collection_repo: aws-app-collection
+        requires:
+        - push-exception-recommender-chart-to-control-plane-catalog
+        filters:
+          branches:
+            ignore: /.*/
+          tags:
+            only: /^v.*/
 
-      - architect/push-to-app-collection:
-          name: azure-app-collection
-          context: "architect"
-          app_name: "exception-recommender"
-          app_collection_repo: "azure-app-collection"
-          requires:
-            - push-exception-recommender-chart-to-control-plane-catalog
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v.*/
+    - architect/push-to-app-collection:
+        name: azure-app-collection
+        context: architect
+        app_name: exception-recommender
+        app_collection_repo: azure-app-collection
+        requires:
+        - push-exception-recommender-chart-to-control-plane-catalog
+        filters:
+          branches:
+            ignore: /.*/
+          tags:
+            only: /^v.*/
 
-      - architect/push-to-app-collection:
-          name: capa-app-collection
-          context: "architect"
-          app_name: "exception-recommender"
-          app_collection_repo: "capa-app-collection"
-          requires:
-            - push-exception-recommender-chart-to-control-plane-catalog
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v.*/
+    - architect/push-to-app-collection:
+        name: capa-app-collection
+        context: architect
+        app_name: exception-recommender
+        app_collection_repo: capa-app-collection
+        requires:
+        - push-exception-recommender-chart-to-control-plane-catalog
+        filters:
+          branches:
+            ignore: /.*/
+          tags:
+            only: /^v.*/
 
-      - architect/push-to-app-collection:
-          name: vsphere-app-collection
-          context: "architect"
-          app_name: "exception-recommender"
-          app_collection_repo: "vsphere-app-collection"
-          requires:
-            - push-exception-recommender-chart-to-control-plane-catalog
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v.*/
+    - architect/push-to-app-collection:
+        name: vsphere-app-collection
+        context: architect
+        app_name: exception-recommender
+        app_collection_repo: vsphere-app-collection
+        requires:
+        - push-exception-recommender-chart-to-control-plane-catalog
+        filters:
+          branches:
+            ignore: /.*/
+          tags:
+            only: /^v.*/
 
-      - architect/push-to-app-collection:
-          name: cloud-director-app-collection
-          context: "architect"
-          app_name: "exception-recommender"
-          app_collection_repo: "cloud-director-app-collection"
-          requires:
-            - push-exception-recommender-chart-to-control-plane-catalog
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v.*/
+    - architect/push-to-app-collection:
+        name: cloud-director-app-collection
+        context: architect
+        app_name: exception-recommender
+        app_collection_repo: cloud-director-app-collection
+        requires:
+        - push-exception-recommender-chart-to-control-plane-catalog
+        filters:
+          branches:
+            ignore: /.*/
+          tags:
+            only: /^v.*/
