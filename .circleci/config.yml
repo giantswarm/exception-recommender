@@ -144,3 +144,16 @@ workflows:
             ignore: /.*/
           tags:
             only: /^v.*/
+
+    - architect/push-to-app-collection:
+        name: proxmox-app-collection
+        context: architect
+        app_name: exception-recommender
+        app_collection_repo: proxmox-app-collection
+        requires:
+        - push-exception-recommender-chart-to-control-plane-catalog
+        filters:
+          branches:
+            ignore: /.*/
+          tags:
+            only: /^v.*/
