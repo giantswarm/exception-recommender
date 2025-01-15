@@ -57,9 +57,9 @@ require (
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/net v0.28.0 // indirect
 	golang.org/x/oauth2 v0.21.0 // indirect
-	golang.org/x/sys v0.24.0 // indirect
-	golang.org/x/term v0.23.0 // indirect
-	golang.org/x/text v0.17.0 // indirect
+	golang.org/x/sys v0.29.0 // indirect
+	golang.org/x/term v0.28.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.24.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
@@ -81,3 +81,5 @@ replace github.com/go-jose/go-jose/v3 v3.0.1 => github.com/go-jose/go-jose/v3 v3
 replace github.com/lestrrat-go/jwx/v2 v2.0.16 => github.com/lestrrat-go/jwx/v2 v2.0.21
 
 replace google.golang.org/protobuf v1.32.0 => google.golang.org/protobuf v1.33.0
+
+replace golang.org/x/net v0.28.0 => golang.org/x/net v0.34.0
