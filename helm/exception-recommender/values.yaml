@@ -23,7 +23,7 @@ image:
 crds:
   install: true
   image:
-    tag: "1.27.4"
+    tag: "1.32.0"
   resources:
     requests:
       cpu: 100m
