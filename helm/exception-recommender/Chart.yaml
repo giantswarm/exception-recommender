@@ -4,6 +4,6 @@ name: exception-recommender
 description: A Helm chart for exception-recommender, which creates PolicyExceptionDrafts from Kyverno's PolicyReport results.
 home: https://github.com/giantswarm/exception-recommender
 icon: https://s.giantswarm.io/app-icons/giantswarm/1/light.svg
-version: 0.1.1
+version: 0.2.0
 annotations:
   application.giantswarm.io/team: shield
