@@ -4,6 +4,10 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.12.0
+    meta.helm.sh/release-name: policy-meta-operator
+    meta.helm.sh/release-namespace: policy-system
+  labels:
+    app.kubernetes.io/managed-by: Helm
   name: policyexceptiondrafts.policy.giantswarm.io
 spec:
   group: policy.giantswarm.io
