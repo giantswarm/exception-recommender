@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add `AutomatedException` feature.
+
 ### Changed
 
 - Disable logger development mode to avoid panicking
