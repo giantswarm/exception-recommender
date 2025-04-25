@@ -106,12 +106,13 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 				// Check Policy mode from cache
 				policyManifestMode := GetPolicyManifestMode(result.Policy, r.PolicyManifestCache)
-				if policyManifestMode == ManifestExpectedMode {
+				switch policyManifestMode {
+				case ManifestExpectedMode:
 					// Add it to the list of failed policies if it isn't already
 					if !resultIsPresent(result.Policy, failedPolicies) {
 						failedPolicies = append(failedPolicies, result.Policy)
 					}
-				} else if policyManifestMode == "" {
+				case "":
 					// Requeue when finished
 					failure = true
 				}
@@ -140,12 +141,12 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			log.Log.Error(err, "unable to create or update AutomatedException")
 			return ctrl.Result{}, client.IgnoreNotFound(err)
 		} else {
-			switch {
-			case op == "created":
+			switch op {
+			case "created":
 				log.Log.Info(fmt.Sprintf("Created AutomatedException %s/%s", automatedException.Namespace, automatedException.Name))
-			case op == "updated":
+			case "updated":
 				log.Log.Info(fmt.Sprintf("Updated AutomatedException %s/%s", automatedException.Namespace, automatedException.Name))
-			case op == "unchanged":
+			case "unchanged":
 				// This log is mainly for debugging, it should not be seen in stable release
 				log.Log.Info(fmt.Sprintf("AutomatedException %s/%s is up to date", automatedException.Namespace, automatedException.Name))
 			}
@@ -159,7 +160,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				Namespace: namespace,
 			},
 		}
-		if err := r.Client.Delete(ctx, &automatedException, &client.DeleteOptions{}); err != nil {
+		if err := r.Delete(ctx, &automatedException, &client.DeleteOptions{}); err != nil {
 			// Error deleting the AutomatedException
 			if !errors.IsNotFound(err) {
 				log.Log.Error(err, "unable to delete AutomatedException")
