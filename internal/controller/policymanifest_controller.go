@@ -59,7 +59,7 @@ func (r *PolicyManifestReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	// Delete manifest from cache if it is being deleted
-	if !policyManifest.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !policyManifest.DeletionTimestamp.IsZero() {
 		delete(r.PolicyManifestCache, policyManifest.Name)
 	} else {
 		// Add the PolicyManifest to the cache
