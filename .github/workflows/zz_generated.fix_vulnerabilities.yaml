@@ -82,7 +82,7 @@ jobs:
         run: ls -la ${{ github.workspace }}
       - name: Run nancy-fixer
         run: |
-          docker run --rm -v "${{ github.workspace }}:/github/workspace" gsoci.azurecr.io/giantswarm/nancy-fixer:0.4.4 fix --log-level debug
+          docker run --rm -v "${{ github.workspace }}:/github/workspace" gsoci.azurecr.io/giantswarm/nancy-fixer:0.4.4 fix --log-level debug --dir /github/workspace
 
       - name: Run nancy-fixer fix
         uses: docker://gsoci.azurecr.io/giantswarm/nancy-fixer:0.4.4
