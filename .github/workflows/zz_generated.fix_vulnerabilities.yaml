@@ -78,6 +78,12 @@ jobs:
           echo "branch=${branch}" >> $GITHUB_OUTPUT
           git checkout -b "${branch}"
           git pull origin "${branch}" || true
+      - name: List files in workspace
+        run: ls -la ${{ github.workspace }}
+      - name: Run nancy-fixer
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/github/workspace" gsoci.azurecr.io/giantswarm/nancy-fixer:0.4.4 fix --log-level debug
+
       - name: Run nancy-fixer fix
         uses: docker://gsoci.azurecr.io/giantswarm/nancy-fixer:0.4.4
         timeout-minutes: 20
