@@ -79,7 +79,7 @@ jobs:
           git checkout -b "${branch}"
           git pull origin "${branch}" || true
       - name: Run nancy-fixer fix
-        uses: docker://gsoci.azurecr.io/giantswarm/nancy-fixer:0.4.4-b07819ece25b2b71bc697d300a6128ead60f4ac7
+        uses: docker://gsoci.azurecr.io/giantswarm/nancy-fixer:0.4.4-6b19c7e8c457c6330d0b4053e4c3b7b9ffe9d508
         timeout-minutes: 20
       - name: Set up git identity
         run: |
