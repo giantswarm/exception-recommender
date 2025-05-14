@@ -82,10 +82,10 @@ jobs:
         run: ls -la ${{ github.workspace }}
       - name: Run nancy-fixer
         run: |
-          docker run --rm -v "${{ github.workspace }}:/github/workspace" gsoci.azurecr.io/giantswarm/nancy-fixer:0.4.4-ae01a50d6cc8853dbafeaf7e20320b15a49140e3 fix --log-level debug --dir /github/workspace
+          docker run --rm -v "${{ github.workspace }}:/github/workspace" gsoci.azurecr.io/giantswarm/nancy-fixer:0.4.4-6d0cd7347aa180f61732b699b1081820ee7cc577 fix --log-level debug --dir /github/workspace
 
       - name: Run nancy-fixer fix
-        uses: docker://gsoci.azurecr.io/giantswarm/nancy-fixer:0.4.4-ae01a50d6cc8853dbafeaf7e20320b15a49140e3
+        uses: docker://gsoci.azurecr.io/giantswarm/nancy-fixer:0.4.4-6d0cd7347aa180f61732b699b1081820ee7cc577
         timeout-minutes: 20
       - name: Set up git identity
         run: |
