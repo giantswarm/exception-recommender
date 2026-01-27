@@ -52,7 +52,7 @@ spec:
       {{- end }}
       containers:
       - name: {{ include "resource.default.name" . }}
-        image: "{{ default .Values.image.registry (include "global.imageRegistry" . ) }}/{{ .Values.image.name }}:{{ .Values.image.tag | default .Chart.Version }}"
+        image: "{{ default .Values.image.registry (include "global.imageRegistry" . ) }}/{{ .Values.image.name }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
         args:
         {{- if .Values.recommender.destinationNamespace }}
           - --destination-namespace={{ .Values.recommender.destinationNamespace }}
