@@ -10,6 +10,7 @@ metadata:
     app.kubernetes.io/component: {{ include "recommender.cleanupJob" . | quote }}
     {{- include "labels.selector" . | nindent 4 }}
 spec:
+  ttlSecondsAfterFinished: 86400
   backoffLimit: 2
   template:
     metadata:
