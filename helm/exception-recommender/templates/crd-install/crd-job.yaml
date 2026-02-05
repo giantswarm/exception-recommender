@@ -13,6 +13,7 @@ metadata:
     {{- include "labels.selector" . | nindent 4 }}
     role: {{ include "recommender.CRDInstallSelector" . | quote }}
 spec:
+  ttlSecondsAfterFinished: 86400
   template:
     metadata:
       labels:
