@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Resolve updated code linter findings.
 - Use AppVersion for image tag defaulting.
+- Migrate chart metadata annotations to OCI-compatible format.
 
 ## [0.2.0] - 2025-01-23
 
