@@ -2,7 +2,7 @@ module github.com/giantswarm/exception-recommender
 
 go 1.23.8
 
-toolchain go1.24.6
+toolchain go1.26.0
 
 require (
 	github.com/giantswarm/policy-api v0.0.6
