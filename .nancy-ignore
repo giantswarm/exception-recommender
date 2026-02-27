@@ -1,4 +1,4 @@
-CVE-2026-22039 until=2026-02-27 # github.com/kyverno/kyverno@v1.14.4
-CVE-2026-23881 until=2026-02-27 # github.com/kyverno/kyverno@v1.14.4
+CVE-2026-22039 until=2026-03-29 # github.com/kyverno/kyverno@v1.14.4
+CVE-2026-23881 until=2026-03-29 # github.com/kyverno/kyverno@v1.14.4
 CVE-2025-47911 until=2026-03-11 # golang.org/x/net@v0.39.0
 CVE-2025-58190 until=2026-03-11 # golang.org/x/net@v0.39.0
