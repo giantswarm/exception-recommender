@@ -1,6 +1,6 @@
 version: 2.1
 orbs:
-  architect: giantswarm/architect@8.1.0
+  architect: giantswarm/architect@8.2.2
 
 jobs:
   unit-tests:
@@ -20,6 +20,7 @@ workflows:
             only: /^v.*/
 
     - architect/go-build:
+        context: architect
         name: go-build
         binary: exception-recommender
         resource_class: large
