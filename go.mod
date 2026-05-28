@@ -1,6 +1,6 @@
 module github.com/giantswarm/exception-recommender
 
-go 1.23.8
+go 1.25.0
 
 toolchain go1.26.3
 
@@ -88,3 +88,5 @@ replace (
 	golang.org/x/net v0.33.0 => golang.org/x/net v0.39.0
 	golang.org/x/net v0.37.0 => golang.org/x/net v0.39.0
 )
+
+replace golang.org/x/sys v0.35.0 => golang.org/x/sys v0.45.0
