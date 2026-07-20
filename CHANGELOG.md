@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Build the container image from the pre-built binary produced by `architect/go-build` instead of compiling inside the image, removing QEMU emulation from the multi-arch build.
 - Resolve updated code linter findings.
 - Use AppVersion for image tag defaulting.
 - Migrate chart metadata annotations to OCI-compatible format.
