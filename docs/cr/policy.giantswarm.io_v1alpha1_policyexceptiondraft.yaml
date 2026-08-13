@@ -1,0 +1,17 @@
+apiVersion: policy.giantswarm.io/v1alpha1
+kind: PolicyExceptionDraft
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: exception-recommender
+  name: my-custom-operator
+  namespace: policy-exceptions
+spec:
+  policies:
+  - disallow-privilege-escalation
+  - require-run-as-nonroot
+  targets:
+  - kind: Deployment
+    names:
+    - my-custom-operator
+    namespaces:
+    - default

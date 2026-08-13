@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `io.giantswarm.application.audience` and `io.giantswarm.application.managed` chart annotations for Backstage visibility.
 - Push to the `default` catalog.
+- Add example `PolicyExceptionDraft` CR under `docs/cr` so the CRD reference docs can show an example.
 
 ### Changed
 
