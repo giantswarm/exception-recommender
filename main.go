@@ -47,7 +47,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	err := kyverno.AddToScheme(scheme)
+	err := kyverno.Install(scheme)
 	if err != nil {
 		setupLog.Error(err, "unable to register kyverno schema")
 	}

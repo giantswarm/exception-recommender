@@ -93,7 +93,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	// Add wgpolicyk8s scheme
-	err = wgpolicyk8s.AddToScheme(scheme.Scheme)
+	err = wgpolicyk8s.Install(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme
