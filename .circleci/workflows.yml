@@ -5,7 +5,8 @@
 # workflow in .circleci/config.yml merges into this file at pipeline runtime.
 version: 2.1
 orbs:
-  architect: giantswarm/architect@9.6.0
+  #architect: giantswarm/architect@9.6.0
+  architect: giantswarm/architect@dev:reenable-golangci-lint-with-gosec
 
 workflows:
   build:
