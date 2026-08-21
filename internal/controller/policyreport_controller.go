@@ -173,7 +173,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	if failure {
 		// Requeue due to failure without errors
-		return reconcile.Result{Requeue: true, RequeueAfter: 15 * time.Second}, nil
+		return reconcile.Result{RequeueAfter: 15 * time.Second}, nil
 	}
 
 	return utils.JitterRequeue(DefaultRequeueDuration, r.MaxJitterPercent, r.Log), nil
