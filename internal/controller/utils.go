@@ -11,9 +11,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// Used for Jitter in requeueing
-var DefaultRequeueDuration = (time.Minute * 5)
 // DefaultRequeueDuration is used for Jitter in requeuing.
+var DefaultRequeueDuration = time.Minute * 5
 
 const (
 	ErrorOp  = "error"
