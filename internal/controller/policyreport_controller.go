@@ -34,7 +34,7 @@ import (
 
 	policyAPI "github.com/giantswarm/policy-api/api/v1alpha1"
 
-	utils "github.com/giantswarm/exception-recommender/internal/utils"
+	"github.com/giantswarm/exception-recommender/internal/utils"
 )
 
 const (
@@ -142,11 +142,11 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return ctrl.Result{}, client.IgnoreNotFound(err)
 		} else {
 			switch op {
-			case "created":
+			case CreateOp:
 				log.Log.Info(fmt.Sprintf("Created AutomatedException %s/%s", automatedException.Namespace, automatedException.Name))
-			case "updated":
+			case UpdateOp:
 				log.Log.Info(fmt.Sprintf("Updated AutomatedException %s/%s", automatedException.Namespace, automatedException.Name))
-			case "unchanged":
+			case NoOp:
 				// This log is mainly for debugging, it should not be seen in stable release
 				log.Log.Info(fmt.Sprintf("AutomatedException %s/%s is up to date", automatedException.Namespace, automatedException.Name))
 			}

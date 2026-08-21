@@ -14,11 +14,13 @@ import (
 // DefaultRequeueDuration is used for Jitter in requeuing.
 var DefaultRequeueDuration = time.Minute * 5
 
+type Op string
+
 const (
-	ErrorOp  = "error"
-	UpdateOp = "updated"
-	NoOp     = "unchanged"
-	CreateOp = "created"
+	ErrorOp  Op = "error"
+	UpdateOp Op = "updated"
+	NoOp     Op = "unchanged"
+	CreateOp Op = "created"
 )
 
 type Controller struct {
@@ -27,7 +29,7 @@ type Controller struct {
 
 // CreateOrUpdate attempts first to patch the object given but if an IsNotFound error
 // is returned it instead creates the resource.
-func (r *Controller) CreateOrUpdate(ctx context.Context, obj client.Object) (string, error) {
+func (r *Controller) CreateOrUpdate(ctx context.Context, obj client.Object) (Op, error) {
 	existingObj := unstructured.Unstructured{}
 	existingObj.SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
 
