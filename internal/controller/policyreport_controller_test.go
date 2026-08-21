@@ -84,7 +84,7 @@ var _ = Describe("PolicyReport controller", func() {
 						Result:   wgpolicyk8s.StatusFail,
 						Rule:     PolicyRuleName,
 						Scored:   true,
-						Severity: "medium",
+						Severity: wgpolicyk8s.SeverityMedium,
 						Source:   "kyverno",
 						Timestamp: metav1.Timestamp{
 							Nanos:   0,
