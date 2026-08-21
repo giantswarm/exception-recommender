@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -78,11 +79,9 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	// Ignore report if namespace is excluded
 	if len(r.ExcludeNamespaces) != 0 {
-		for _, namespace := range r.ExcludeNamespaces {
-			if namespace == policyReport.Namespace {
-				// Namespace is excluded, skip
-				return reconcile.Result{}, nil
-			}
+		if slices.Contains(r.ExcludeNamespaces, policyReport.Namespace) {
+			// Namespace is excluded, skip
+			return reconcile.Result{}, nil
 		}
 	}
 
@@ -160,6 +159,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				Namespace: namespace,
 			},
 		}
+
 		if err := r.Delete(ctx, &automatedException, &client.DeleteOptions{}); err != nil {
 			// Error deleting the AutomatedException
 			if !errors.IsNotFound(err) {
@@ -180,33 +180,17 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 }
 
 func resultIsPresent(result string, failedResults []string) bool {
-	for _, failedResult := range failedResults {
-		if failedResult == result {
-			// Already exists, return true
-			return true
-		}
-	}
-	return false
+	return slices.Contains(failedResults, result)
 }
 
-func isKind(resourceKind string, targetWorloads []string) bool {
+func isKind(resourceKind string, targetWorkloads []string) bool {
 	// Checks if the resource matches the kind in targetWorkloads
-	for _, kind := range targetWorloads {
-		if resourceKind == kind {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(targetWorkloads, resourceKind)
 }
 
 func isPolicyCategory(resultCategory string, targetCategories []string) bool {
 	// Checks if the result category matches the category in targetCategories
-	for _, category := range targetCategories {
-		if resultCategory == category {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(targetCategories, resultCategory)
 }
 
 // SetupWithManager sets up the controller with the Manager.
