@@ -13,6 +13,7 @@ import (
 
 // Used for Jitter in requeueing
 var DefaultRequeueDuration = (time.Minute * 5)
+// DefaultRequeueDuration is used for Jitter in requeuing.
 
 const (
 	ErrorOp  = "error"
