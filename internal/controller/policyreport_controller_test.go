@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-
 	"time"
 
 	wgpolicyk8s "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
