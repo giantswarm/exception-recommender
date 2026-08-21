@@ -30,7 +30,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	policyAPI "github.com/giantswarm/policy-api/api/v1alpha1"
-	policyreport "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
 )
 
 var _ = Describe("PolicyReport controller", func() {
@@ -82,7 +81,7 @@ var _ = Describe("PolicyReport controller", func() {
 						Category: PolicyCategory,
 						Message:  "validation rule 'run-as-nonroot' failed",
 						Policy:   PolicyName,
-						Result:   policyreport.StatusFail,
+						Result:   wgpolicyk8s.StatusFail,
 						Rule:     PolicyRuleName,
 						Scored:   true,
 						Severity: "medium",
