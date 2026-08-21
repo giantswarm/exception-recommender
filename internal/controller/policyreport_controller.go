@@ -77,15 +77,8 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// Ignore report if namespace is excluded
-	if slices.Contains(r.ExcludeNamespaces, policyReport.Namespace) {
-		return reconcile.Result{}, nil
-	}
-
-	// Ignore report if kind is not part of TargetWorkloads
-	if !isKind(policyReport.Scope.Kind, r.TargetWorkloads) {
-		// Kind is not part of the targetWorkloads list, skip
-		return reconcile.Result{}, nil
+	if r.shouldIgnoreReport(policyReport) {
+		return ctrl.Result{}, nil
 	}
 
 	var failedPolicies []string
@@ -174,6 +167,21 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	return utils.JitterRequeue(DefaultRequeueDuration, r.MaxJitterPercent, r.Log), nil
+}
+
+func (r *PolicyReportReconciler) shouldIgnoreReport(policyReport policyreport.PolicyReport) bool {
+	// Ignore report if namespace is excluded
+	if slices.Contains(r.ExcludeNamespaces, policyReport.Namespace) {
+		return true
+	}
+
+	// Ignore report if kind is not part of TargetWorkloads
+	if !isKind(policyReport.Scope.Kind, r.TargetWorkloads) {
+		// Kind is not part of the targetWorkloads list, skip
+		return true
+	}
+
+	return false
 }
 
 func resultIsPresent(result string, failedResults []string) bool {
