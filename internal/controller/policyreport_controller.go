@@ -85,27 +85,29 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	failure := false
 
 	for _, result := range policyReport.Results {
-		// Check the result status and PolicyCategory
-		if isPolicyCategory(result.Category, r.TargetCategories) {
+		// Skip if the result categroy does not match
+		if !isPolicyCategory(result.Category, r.TargetCategories) {
+			continue
+		}
 
-			// Failed result, create or update AutomatedException
-			if result.Result == "fail" {
-				// Check if Policy is in warming mode or not
-				log.Log.Info(fmt.Sprintf("Policy %s has failed for %s/%s", result.Policy, policyReport.Scope.Kind, policyReport.Scope.Name))
+		// Skip if the result is not fail
+		if result.Result != "fail" {
+			continue
+		}
 
-				// Check Policy mode from cache
-				policyManifestMode := GetPolicyManifestMode(result.Policy, r.PolicyManifestCache)
-				switch policyManifestMode {
-				case ManifestExpectedMode:
-					// Add it to the list of failed policies if it isn't already
-					if !resultIsPresent(result.Policy, failedPolicies) {
-						failedPolicies = append(failedPolicies, result.Policy)
-					}
-				case "":
-					// Requeue when finished
-					failure = true
-				}
+		log.Log.Info(fmt.Sprintf("Policy %s has failed for %s/%s", result.Policy, policyReport.Scope.Kind, policyReport.Scope.Name))
+
+		// Check Policy mode from cache
+		policyManifestMode := GetPolicyManifestMode(result.Policy, r.PolicyManifestCache)
+		switch policyManifestMode {
+		case ManifestExpectedMode:
+			// Add it to the list of failed policies if it isn't already
+			if !resultIsPresent(result.Policy, failedPolicies) {
+				failedPolicies = append(failedPolicies, result.Policy)
 			}
+		case "":
+			// Not in cache yet, requeue when finished
+			failure = true
 		}
 	}
 
