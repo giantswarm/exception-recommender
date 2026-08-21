@@ -85,13 +85,8 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	failure := false
 
 	for _, result := range policyReport.Results {
-		// Skip if the result categroy does not match
-		if !isPolicyCategory(result.Category, r.TargetCategories) {
-			continue
-		}
-
-		// Skip if the result is not fail
-		if result.Result != "fail" {
+		// if the result is not relevant we skip it
+		if !r.isRelevantFailure(result) {
 			continue
 		}
 
@@ -169,6 +164,20 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	return utils.JitterRequeue(DefaultRequeueDuration, r.MaxJitterPercent, r.Log), nil
+}
+
+// isRelevantFailure reports whether a result is a failure in one of the
+// categories this controller manages exceptions for.
+func (r *PolicyReportReconciler) isRelevantFailure(result policyreport.PolicyReportResult) bool {
+	if !isPolicyCategory(result.Category, r.TargetCategories) {
+		return false
+	}
+
+	if result.Result != "fail" {
+		return false
+	}
+
+	return true
 }
 
 func (r *PolicyReportReconciler) shouldIgnoreReport(policyReport policyreport.PolicyReport) bool {
