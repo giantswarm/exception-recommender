@@ -183,13 +183,13 @@ func resultIsPresent(result string, failedResults []string) bool {
 	return slices.Contains(failedResults, result)
 }
 
+// isKind Checks if the resource matches the kind in targetWorkloads.
 func isKind(resourceKind string, targetWorkloads []string) bool {
-	// Checks if the resource matches the kind in targetWorkloads
 	return slices.Contains(targetWorkloads, resourceKind)
 }
 
+// isPolicyCategory Checks if the result category matches the category in targetCategories.
 func isPolicyCategory(resultCategory string, targetCategories []string) bool {
-	// Checks if the result category matches the category in targetCategories
 	return slices.Contains(targetCategories, resultCategory)
 }
 
