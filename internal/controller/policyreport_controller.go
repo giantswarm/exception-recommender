@@ -78,11 +78,8 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	// Ignore report if namespace is excluded
-	if len(r.ExcludeNamespaces) != 0 {
-		if slices.Contains(r.ExcludeNamespaces, policyReport.Namespace) {
-			// Namespace is excluded, skip
-			return reconcile.Result{}, nil
-		}
+	if slices.Contains(r.ExcludeNamespaces, policyReport.Namespace) {
+		return reconcile.Result{}, nil
 	}
 
 	// Ignore report if kind is not part of TargetWorkloads
