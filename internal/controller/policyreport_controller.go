@@ -173,7 +173,7 @@ func (r *PolicyReportReconciler) isRelevantFailure(result policyreport.PolicyRep
 		return false
 	}
 
-	if result.Result != "fail" {
+	if result.Result != policyreport.StatusFail {
 		return false
 	}
 
