@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-
 	"time"
 
 	wgpolicyk8s "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
@@ -82,10 +81,10 @@ var _ = Describe("PolicyReport controller", func() {
 						Category: PolicyCategory,
 						Message:  "validation rule 'run-as-nonroot' failed",
 						Policy:   PolicyName,
-						Result:   "fail",
+						Result:   wgpolicyk8s.StatusFail,
 						Rule:     PolicyRuleName,
 						Scored:   true,
-						Severity: "medium",
+						Severity: wgpolicyk8s.SeverityMedium,
 						Source:   "kyverno",
 						Timestamp: metav1.Timestamp{
 							Nanos:   0,

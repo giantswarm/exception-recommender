@@ -29,7 +29,7 @@ import (
 
 	policyAPI "github.com/giantswarm/policy-api/api/v1alpha1"
 
-	utils "github.com/giantswarm/exception-recommender/internal/utils"
+	"github.com/giantswarm/exception-recommender/internal/utils"
 )
 
 // PolicyManifestReconciler reconciles a PolicyManifest object

@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	tests "github.com/giantswarm/exception-recommender/tests"
+	"github.com/giantswarm/exception-recommender/tests"
 
 	wgpolicyk8s "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
 

@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -34,7 +35,7 @@ import (
 
 	policyAPI "github.com/giantswarm/policy-api/api/v1alpha1"
 
-	utils "github.com/giantswarm/exception-recommender/internal/utils"
+	"github.com/giantswarm/exception-recommender/internal/utils"
 )
 
 const (
@@ -76,47 +77,32 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// Ignore report if namespace is excluded
-	if len(r.ExcludeNamespaces) != 0 {
-		for _, namespace := range r.ExcludeNamespaces {
-			if namespace == policyReport.Namespace {
-				// Namespace is excluded, skip
-				return reconcile.Result{}, nil
-			}
-		}
-	}
-
-	// Ignore report if kind is not part of TargetWorkloads
-	if !isKind(policyReport.Scope.Kind, r.TargetWorkloads) {
-		// Kind is not part of the targetWorkloads list, skip
-		return reconcile.Result{}, nil
+	if r.shouldIgnoreReport(policyReport) {
+		return ctrl.Result{}, nil
 	}
 
 	var failedPolicies []string
 	failure := false
 
 	for _, result := range policyReport.Results {
-		// Check the result status and PolicyCategory
-		if isPolicyCategory(result.Category, r.TargetCategories) {
+		// if the result is not relevant we skip it
+		if !r.isRelevantFailure(result) {
+			continue
+		}
 
-			// Failed result, create or update AutomatedException
-			if result.Result == "fail" {
-				// Check if Policy is in warming mode or not
-				log.Log.Info(fmt.Sprintf("Policy %s has failed for %s/%s", result.Policy, policyReport.Scope.Kind, policyReport.Scope.Name))
+		log.Log.Info(fmt.Sprintf("Policy %s has failed for %s/%s", result.Policy, policyReport.Scope.Kind, policyReport.Scope.Name))
 
-				// Check Policy mode from cache
-				policyManifestMode := GetPolicyManifestMode(result.Policy, r.PolicyManifestCache)
-				switch policyManifestMode {
-				case ManifestExpectedMode:
-					// Add it to the list of failed policies if it isn't already
-					if !resultIsPresent(result.Policy, failedPolicies) {
-						failedPolicies = append(failedPolicies, result.Policy)
-					}
-				case "":
-					// Requeue when finished
-					failure = true
-				}
+		// Check Policy mode from cache
+		policyManifestMode := GetPolicyManifestMode(result.Policy, r.PolicyManifestCache)
+		switch policyManifestMode {
+		case ManifestExpectedMode:
+			// Add it to the list of failed policies if it isn't already
+			if !resultIsPresent(result.Policy, failedPolicies) {
+				failedPolicies = append(failedPolicies, result.Policy)
 			}
+		case "":
+			// Not in cache yet, requeue when finished
+			failure = true
 		}
 	}
 
@@ -142,11 +128,11 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return ctrl.Result{}, client.IgnoreNotFound(err)
 		} else {
 			switch op {
-			case "created":
+			case CreateOp:
 				log.Log.Info(fmt.Sprintf("Created AutomatedException %s/%s", automatedException.Namespace, automatedException.Name))
-			case "updated":
+			case UpdateOp:
 				log.Log.Info(fmt.Sprintf("Updated AutomatedException %s/%s", automatedException.Namespace, automatedException.Name))
-			case "unchanged":
+			case NoOp:
 				// This log is mainly for debugging, it should not be seen in stable release
 				log.Log.Info(fmt.Sprintf("AutomatedException %s/%s is up to date", automatedException.Namespace, automatedException.Name))
 			}
@@ -160,6 +146,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				Namespace: namespace,
 			},
 		}
+
 		if err := r.Delete(ctx, &automatedException, &client.DeleteOptions{}); err != nil {
 			// Error deleting the AutomatedException
 			if !errors.IsNotFound(err) {
@@ -173,40 +160,53 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	if failure {
 		// Requeue due to failure without errors
-		return reconcile.Result{Requeue: true, RequeueAfter: 15 * time.Second}, nil
+		return reconcile.Result{RequeueAfter: 15 * time.Second}, nil
 	}
 
 	return utils.JitterRequeue(DefaultRequeueDuration, r.MaxJitterPercent, r.Log), nil
 }
 
+// isRelevantFailure reports whether a result is a failure in one of the
+// categories this controller manages exceptions for.
+func (r *PolicyReportReconciler) isRelevantFailure(result policyreport.PolicyReportResult) bool {
+	if !isPolicyCategory(result.Category, r.TargetCategories) {
+		return false
+	}
+
+	if result.Result != policyreport.StatusFail {
+		return false
+	}
+
+	return true
+}
+
+func (r *PolicyReportReconciler) shouldIgnoreReport(policyReport policyreport.PolicyReport) bool {
+	// Ignore report if namespace is excluded
+	if slices.Contains(r.ExcludeNamespaces, policyReport.Namespace) {
+		return true
+	}
+
+	// Ignore report if kind is not part of TargetWorkloads
+	if !isKind(policyReport.Scope.Kind, r.TargetWorkloads) {
+		// Kind is not part of the targetWorkloads list, skip
+		return true
+	}
+
+	return false
+}
+
 func resultIsPresent(result string, failedResults []string) bool {
-	for _, failedResult := range failedResults {
-		if failedResult == result {
-			// Already exists, return true
-			return true
-		}
-	}
-	return false
+	return slices.Contains(failedResults, result)
 }
 
-func isKind(resourceKind string, targetWorloads []string) bool {
-	// Checks if the resource matches the kind in targetWorkloads
-	for _, kind := range targetWorloads {
-		if resourceKind == kind {
-			return true
-		}
-	}
-	return false
+// isKind Checks if the resource matches the kind in targetWorkloads.
+func isKind(resourceKind string, targetWorkloads []string) bool {
+	return slices.Contains(targetWorkloads, resourceKind)
 }
 
+// isPolicyCategory Checks if the result category matches the category in targetCategories.
 func isPolicyCategory(resultCategory string, targetCategories []string) bool {
-	// Checks if the result category matches the category in targetCategories
-	for _, category := range targetCategories {
-		if resultCategory == category {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(targetCategories, resultCategory)
 }
 
 // SetupWithManager sets up the controller with the Manager.
