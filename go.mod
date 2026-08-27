@@ -6,7 +6,7 @@ toolchain go1.26.4
 
 require (
 	github.com/giantswarm/policy-api v0.0.9
-	github.com/go-logr/logr v1.4.3
+	github.com/go-logr/logr v1.4.4
 	github.com/kyverno/kyverno v1.18.1
 	github.com/onsi/ginkgo/v2 v2.32.0
 	github.com/onsi/gomega v1.42.1
