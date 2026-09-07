@@ -114,3 +114,17 @@ replace github.com/sigstore/sigstore-go v1.1.4 => github.com/sigstore/sigstore-g
 replace github.com/sigstore/rekor v1.5.1 => github.com/sigstore/rekor v1.5.3
 
 replace github.com/sigstore/fulcio v1.8.5 => github.com/sigstore/fulcio v1.8.8
+
+replace github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 => github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
+
+replace github.com/mark3labs/mcp-go v0.43.2 => github.com/mark3labs/mcp-go v1.0.0
+
+replace google.golang.org/grpc v1.80.0 => google.golang.org/grpc v1.83.2
+
+replace golang.org/x/crypto v0.53.0 => golang.org/x/crypto v0.56.0
+
+replace go.opentelemetry.io/otel/sdk v1.43.0 => go.opentelemetry.io/otel/sdk v1.46.0
+
+replace go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.43.0 => go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.46.0
+
+replace go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.43.0 => go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.46.0
