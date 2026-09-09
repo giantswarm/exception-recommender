@@ -153,9 +153,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-                "readOnlyRootFilesystem": {
-                    "type": "boolean"
-                },
                 "runAsGroup": {
                     "type": "integer"
                 },
