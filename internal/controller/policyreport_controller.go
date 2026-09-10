@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -142,7 +141,7 @@ func (r *PolicyReportReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// Delete AutomatedException
 		automatedException := policyAPI.AutomatedException{
 			ObjectMeta: ctrl.ObjectMeta{
-				Name:      policyReport.Scope.Name + "-" + strings.ToLower(policyReport.Scope.Kind),
+				Name:      utils.AutomatedExceptionName(policyReport),
 				Namespace: namespace,
 			},
 		}

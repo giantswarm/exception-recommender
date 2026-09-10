@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -36,18 +37,17 @@ var _ = Describe("PolicyReport controller", func() {
 
 	// Define utility constants for object names and testing timeouts/durations and intervals.
 	const (
-		PolicyReportName       = "e29eb7f4-6335-412c-b985-3fbbeb512bfb"
-		PolicyReportNamespace  = "default"
-		PolicyCategory         = "Pod Security Standards (Restricted)"
-		PolicyName             = "require-run-as-nonroot"
-		PolicyRuleName         = "run-as-nonroot"
-		PolicyManifestMode     = "warming"
-		AutomatedExceptionName = "app-deployment-deployment"
-		ResourceName           = "app-deployment"
-		ResourceNamespace      = "default"
-		ResourceKind           = "Deployment"
-		ResourveAPIVersion     = "apps/v1"
-		ResourceUID            = "e6d75155-e7bd-4df0-84d5-e1b2416cb2b9"
+		PolicyReportName      = "e29eb7f4-6335-412c-b985-3fbbeb512bfb"
+		PolicyReportNamespace = "default"
+		PolicyCategory        = "Pod Security Standards (Restricted)"
+		PolicyName            = "require-run-as-nonroot"
+		PolicyRuleName        = "run-as-nonroot"
+		PolicyManifestMode    = "warming"
+		ResourceName          = "app-deployment"
+		ResourceNamespace     = "default"
+		ResourceKind          = "Deployment"
+		ResourveAPIVersion    = "apps/v1"
+		ResourceUID           = "e6d75155-e7bd-4df0-84d5-e1b2416cb2b9"
 
 		timeout  = time.Second * 10
 		duration = time.Second * 10
@@ -124,6 +124,23 @@ var _ = Describe("PolicyReport controller", func() {
 				Eventually(func() bool {
 					err := k8sClient.Get(ctx, automatedExceptionLookupKey, &automatedException)
 					return err == nil
+				}, timeout, interval).Should(BeTrue())
+			})
+		})
+
+		When("the PolicyReport stops failing", func() {
+			It("must delete the Giant Swarm AutomatedException", func() {
+				policyReport := wgpolicyk8s.PolicyReport{}
+				policyReportLookupKey := types.NamespacedName{Name: PolicyReportName, Namespace: PolicyReportNamespace}
+				Expect(k8sClient.Get(ctx, policyReportLookupKey, &policyReport)).Should(Succeed())
+
+				// No failed results left, so the AutomatedException should go away.
+				policyReport.Results = []wgpolicyk8s.PolicyReportResult{}
+				Expect(k8sClient.Update(ctx, &policyReport)).Should(Succeed())
+
+				Eventually(func() bool {
+					err := k8sClient.Get(ctx, automatedExceptionLookupKey, &automatedException)
+					return apierrors.IsNotFound(err)
 				}, timeout, interval).Should(BeTrue())
 			})
 		})

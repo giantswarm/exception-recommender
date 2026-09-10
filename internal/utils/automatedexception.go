@@ -15,13 +15,19 @@ const (
 	NameLabelName      = "policy.giantswarm.io/resource-name"
 )
 
+// AutomatedExceptionName returns the AutomatedException name for policyReport.
+// Create and delete both need it and they have to agree.
+func AutomatedExceptionName(policyReport policyreport.PolicyReport) string {
+	return string(policyReport.Scope.UID)
+}
+
 func TemplateAutomatedException(policyReport policyreport.PolicyReport, failedPolicies []string, namespace string) policyAPI.AutomatedException {
 	// Template AutomatedException
 	automatedException := policyAPI.AutomatedException{}
 	// Set GroupVersionKind
 	automatedException.SetGroupVersionKind(policyAPI.GroupVersion.WithKind("AutomatedException"))
 	// Set resource UID as Name
-	automatedException.Name = string(policyReport.Scope.UID)
+	automatedException.Name = AutomatedExceptionName(policyReport)
 	// Set Namespace
 	automatedException.Namespace = namespace
 	// Set Labels
