@@ -1,2 +1,3 @@
 test-executor: gotest
 skip-steps: [upgrade]
+cluster-crds: /etc/ats/crds,tests/ats/crds
