@@ -82,7 +82,7 @@ A bridge is only written when it exempts the same requests as its source:
 | `migrated` | The bridge exists. |
 | `pending` | The bridge is about to be written (`bridge_missing`), or neither a ClusterPolicy nor a ValidatingPolicy, MutatingPolicy or ImageValidatingPolicy of that name exists (`policy_not_found`). |
 | `lossy` | `ruleNames` do not cover every rule of the ClusterPolicy (`rule_names`); a CEL exception would exempt the whole policy. |
-| `unsupported` | The source uses something a Giant Swarm PolicyException cannot express: `conditions`, `pod_security`, `subjects`, `roles`, `cluster_roles`, `selector`, `namespace_selector`, `annotations`, `operations`, `match_all`, `no_match`, `no_kinds`, `kind_format` (a wildcard in the kind, or a subresource such as `Pod/exec`), `no_policies`, `namespaced_policy` or `name_too_long`. |
+| `unsupported` | The source uses something a Giant Swarm PolicyException cannot express: `conditions`, `pod_security`, `subjects`, `roles`, `cluster_roles`, `selector`, `namespace_selector`, `annotations`, `operations`, `match_all` (several `match.all` filters, or `match.all` together with `match.any`), `name_and_names` (a filter with both `name` and `names`), `no_match`, `no_kinds`, `kind_format` (a wildcard in the kind, or a subresource such as `Pod/exec`), `no_policies`, `namespaced_policy` or `name_too_long`. |
 | `collision` | The bridge's name is taken (`name_taken`), either by another object, which is never changed, or by a same-name source in another namespace. While no bridge exists, the source whose `namespace/name` sorts lowest gets it. An existing bridge never changes owner. |
 
 When no ClusterPolicy of the source's policy name exists but a CEL policy of that name does, the
@@ -94,8 +94,8 @@ Info.
 
 When the source is deleted, the bridge is deleted and garbage collection removes the CEL exception.
 When a same-name source in another namespace is waiting for the name, it takes it at the next resync.
-A bridge is kept while the legacy CRD is missing or being deleted, or while the API server cannot
-confirm the source is gone. Uninstalling exception-recommender, or setting
+A bridge is kept while the legacy CRD is missing, being deleted or not serving `v2`, or while the
+API server cannot confirm the source is gone. Uninstalling exception-recommender, or setting
 `migrationBridges.enabled: false`, leaves the bridges in place; find them by label and annotation
 (`-n policy-exceptions` must match `--bridge-namespace` / `migrationBridges.namespace`):
 

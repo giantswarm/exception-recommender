@@ -76,9 +76,10 @@ func (c *MigrationCollector) Collect(ch chan<- prometheus.Metric) {
 		if migration.IsManagedByKPO(src) {
 			continue
 		}
-		status, err := migration.Evaluate(ctx, c.Reader, c.BridgeNamespace, src)
+		logger := c.Log.WithValues("source", migration.SourceKey(src))
+		status, err := migration.Evaluate(log.IntoContext(ctx, logger), c.Reader, c.BridgeNamespace, src)
 		if err != nil {
-			c.Log.Error(err, "unable to evaluate legacy PolicyException for metrics", "source", migration.SourceKey(src))
+			logger.Error(err, "unable to evaluate legacy PolicyException for metrics")
 			continue
 		}
 		counts[status.State]++

@@ -37,10 +37,10 @@ type LegacyExceptionReconciler struct {
 }
 
 func (r *LegacyExceptionReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx).WithValues("source", req.NamespacedName)
+	src := kyvernov2.PolicyException{ObjectMeta: metav1.ObjectMeta{Name: req.Name, Namespace: req.Namespace}}
+	logger := log.FromContext(ctx).WithValues("source", migration.SourceKey(&src))
 	ctx = log.IntoContext(ctx, logger)
 
-	var src kyvernov2.PolicyException
 	if err := r.Get(ctx, req.NamespacedName, &src); err != nil {
 		if !apierrors.IsNotFound(err) {
 			logger.Error(err, "unable to get legacy PolicyException")
@@ -98,6 +98,11 @@ func (r *LegacyExceptionReconciler) writeBridge(ctx context.Context, src *kyvern
 		bridge.Spec = spec
 		return nil
 	})
+	if errors.Is(err, errNotOurBridge) {
+		// A name collision, not an API failure: the next Evaluate reports it as such.
+		logger.V(1).Info("object is not this source's bridge, leaving it alone", "bridge", client.ObjectKeyFromObject(&bridge))
+		return nil
+	}
 	if err != nil {
 		TranslationErrors.WithLabelValues(ReasonApplyFailed).Inc()
 		logger.Error(err, "unable to write bridge", "bridge", client.ObjectKeyFromObject(&bridge))
@@ -157,6 +162,11 @@ func (r *LegacyExceptionReconciler) sourceGone(ctx context.Context, source types
 		logger.Info("legacy PolicyException CRD is being deleted, keeping bridge")
 		return false, nil
 	}
+	if !servesV2(&crd) {
+		// A NotFound for a version that is not served says nothing about the source.
+		logger.Info("legacy PolicyException CRD does not serve kyverno.io/v2, keeping bridge")
+		return false, nil
+	}
 
 	var src kyvernov2.PolicyException
 	err := r.APIReader.Get(ctx, source, &src)
@@ -172,18 +182,29 @@ func (r *LegacyExceptionReconciler) sourceGone(ctx context.Context, source types
 	}
 }
 
-// deleteBridge deletes a bridge this controller wrote.
+// servesV2 reports whether crd serves kyverno.io/v2, the version sources are read with.
+func servesV2(crd *apiextensionsv1.CustomResourceDefinition) bool {
+	for _, version := range crd.Spec.Versions {
+		if version.Name == "v2" && version.Served {
+			return true
+		}
+	}
+	return false
+}
+
+// deleteBridge deletes a bridge that IsBridgeFor confirmed was written for the source. The delete is
+// pinned to that object, so one that changed or was recreated since the check is left alone.
 func (r *LegacyExceptionReconciler) deleteBridge(ctx context.Context, bridge *policyAPI.PolicyException) error {
 	logger := log.FromContext(ctx)
 	key := client.ObjectKeyFromObject(bridge)
-	if bridge.Labels[migration.ManagedByLabel] != migration.ComponentName {
-		logger.V(1).Info("object not managed by exception-recommender, leaving it alone", "bridge", key)
-		return nil
-	}
-	if err := r.Delete(ctx, bridge); err != nil {
+	if err := r.Delete(ctx, bridge, client.Preconditions{UID: &bridge.UID, ResourceVersion: &bridge.ResourceVersion}); err != nil {
 		if apierrors.IsNotFound(err) {
 			logger.V(1).Info("bridge already deleted", "bridge", key)
 			return nil
+		}
+		if apierrors.IsConflict(err) {
+			logger.V(1).Info("bridge changed since it was checked, re-evaluating", "bridge", key)
+			return err
 		}
 		TranslationErrors.WithLabelValues(ReasonDeleteFailed).Inc()
 		logger.Error(err, "unable to delete bridge", "bridge", key)

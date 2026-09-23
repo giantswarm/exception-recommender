@@ -27,6 +27,7 @@ const (
 	ReasonOperations        = "operations"
 	ReasonNoKinds           = "no_kinds"
 	ReasonKindFormat        = "kind_format"
+	ReasonNameAndNames      = "name_and_names"
 	ReasonNoPolicies        = "no_policies"
 	ReasonNamespacedPolicy  = "namespaced_policy"
 	ReasonRuleNames         = "rule_names"
@@ -117,6 +118,9 @@ func unsupportedReason(src *kyvernov2.PolicyException) string {
 	case len(spec.Match.All) > 1:
 		// A gspolex target list is an "any"; an "all" of several filters is an intersection.
 		return ReasonMatchAll
+	case len(spec.Match.Any) > 0 && len(spec.Match.All) > 0:
+		// Kyverno ignores "all" when "any" is set, so merging both would exempt more.
+		return ReasonMatchAll
 	case len(spec.Exceptions) == 0:
 		return ReasonNoPolicies
 	}
@@ -152,6 +156,9 @@ func unsupportedFilterReason(filter kyvernov1.ResourceFilter) string {
 		return ReasonOperations
 	case len(filter.Kinds) == 0:
 		return ReasonNoKinds
+	case filter.Name != "" && len(filter.Names) > 0:
+		// Kyverno requires both to match; a target's names match any one of them.
+		return ReasonNameAndNames
 	}
 	for _, kind := range filter.Kinds {
 		if _, ok := targetKind(kind); !ok {

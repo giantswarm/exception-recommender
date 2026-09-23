@@ -74,7 +74,7 @@ func TestReconcileUpdatesOwnBridge(t *testing.T) {
 		t.Fatal(err)
 	}
 	bridge, _ := getBridge(t, c)
-	if bridge.Spec.Policies[0] != "require-run-as-nonroot" {
+	if bridge.Spec.Policies[0] != testPolicyName {
 		t.Fatalf("bridge not updated: %+v", bridge.Spec)
 	}
 }
@@ -91,7 +91,7 @@ func TestReconcileNeverTouchesUnlabelledGSPolex(t *testing.T) {
 				t.Fatal(err)
 			}
 			bridge, ok := getBridge(t, c)
-			if !ok || bridge.Spec.Policies[0] != "stale" {
+			if !ok || bridge.Spec.Policies[0] != stalePolicy {
 				t.Fatalf("unlabelled gspolex was changed or deleted: %+v", bridge)
 			}
 		})
@@ -195,14 +195,14 @@ func TestReconcileBridgesThroughCELPolicy(t *testing.T) {
 	// The ClusterPolicy was replaced by a ValidatingPolicy of the same name: ruleNames are not checked.
 	s := unitScheme(t)
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(
-		&policiesv1.ValidatingPolicy{ObjectMeta: metav1.ObjectMeta{Name: "require-run-as-nonroot"}},
+		&policiesv1.ValidatingPolicy{ObjectMeta: metav1.ObjectMeta{Name: testPolicyName}},
 		legacySource("run-as-non-root")).Build()
 
 	if err := reconcileSource(t, newReconciler(c, c)); err != nil {
 		t.Fatal(err)
 	}
 	bridge, ok := getBridge(t, c)
-	if !ok || bridge.Spec.Policies[0] != "require-run-as-nonroot" {
+	if !ok || bridge.Spec.Policies[0] != testPolicyName {
 		t.Fatalf("no bridge for a source whose policy is a ValidatingPolicy: %+v", bridge)
 	}
 }
@@ -288,6 +288,8 @@ func TestReconcileKeepsBridgeWhenDeletionIsNotConfirmed(t *testing.T) {
 	now := metav1.Now()
 	terminating := legacyCRD()
 	terminating.DeletionTimestamp, terminating.Finalizers = &now, []string{"customresourcecleanup.apiextensions.k8s.io"}
+	notServed := legacyCRD()
+	notServed.Spec.Versions[0].Served = false
 	failingGet := interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 		return errors.New("connection refused")
 	}}
@@ -299,6 +301,7 @@ func TestReconcileKeepsBridgeWhenDeletionIsNotConfirmed(t *testing.T) {
 		"source still on the API server": {api: fake.NewClientBuilder().WithScheme(s).WithObjects(legacyCRD(), legacySource("*")).Build()},
 		"legacy CRD being deleted":       {api: fake.NewClientBuilder().WithScheme(s).WithObjects(terminating).Build()},
 		"legacy CRD not found":           {api: fake.NewClientBuilder().WithScheme(s).Build()},
+		"legacy CRD does not serve v2":   {api: fake.NewClientBuilder().WithScheme(s).WithObjects(notServed).Build()},
 		"API server unreachable":         {api: fake.NewClientBuilder().WithScheme(s).WithInterceptorFuncs(failingGet).Build(), wantErr: true},
 	}
 	for name, tc := range cases {
@@ -315,6 +318,47 @@ func TestReconcileKeepsBridgeWhenDeletionIsNotConfirmed(t *testing.T) {
 	}
 }
 
+func TestReconcileKeepsBridgeRecreatedBeforeDelete(t *testing.T) {
+	// The cache still holds the checked bridge while the API server has a new object of that name.
+	s := unitScheme(t)
+	recreated := existingBridge(ownLabels, "giantswarm/cilium")
+	recreated.UID = "recreated"
+	funcs := interceptor.Funcs{
+		Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if err := c.Get(ctx, key, obj, opts...); err != nil {
+				return err
+			}
+			if bridge, ok := obj.(*policyAPI.PolicyException); ok {
+				bridge.UID = "checked"
+			}
+			return nil
+		},
+		// The fake client ignores UID preconditions; reject a mismatch like the API server does.
+		Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+			var options client.DeleteOptions
+			options.ApplyOptions(opts)
+			if options.Preconditions != nil && options.Preconditions.UID != nil && *options.Preconditions.UID != recreated.UID {
+				return apierrors.NewConflict(policyAPI.GroupVersion.WithResource("policyexceptions").GroupResource(),
+					obj.GetName(), errors.New("UID precondition failed"))
+			}
+			return c.Delete(ctx, obj, opts...)
+		},
+	}
+	cached := fake.NewClientBuilder().WithScheme(s).WithObjects(recreated).WithInterceptorFuncs(funcs).Build()
+	api := fake.NewClientBuilder().WithScheme(s).WithObjects(legacyCRD()).Build()
+	before := testutil.ToFloat64(BridgesRemoved)
+
+	if err := reconcileSource(t, newReconciler(cached, api)); !apierrors.IsConflict(err) {
+		t.Fatalf("got error %v, want a conflict", err)
+	}
+	if _, ok := getBridge(t, cached); !ok {
+		t.Fatal("bridge recreated after the check was deleted")
+	}
+	if got := testutil.ToFloat64(BridgesRemoved) - before; got != 0 {
+		t.Fatalf("bridges_removed_total grew by %v, want 0", got)
+	}
+}
+
 func TestReconcileKeepsBridgeWhenPolicyGone(t *testing.T) {
 	// Neither a ClusterPolicy nor a CEL policy of that name exists any more: the bridge stays as written.
 	s := unitScheme(t)
@@ -325,7 +369,7 @@ func TestReconcileKeepsBridgeWhenPolicyGone(t *testing.T) {
 		t.Fatal(err)
 	}
 	bridge, ok := getBridge(t, c)
-	if !ok || bridge.Spec.Policies[0] != "stale" {
+	if !ok || bridge.Spec.Policies[0] != stalePolicy {
 		t.Fatalf("bridge removed or rewritten after its policy went away: %+v", bridge)
 	}
 }
