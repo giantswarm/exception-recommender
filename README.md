@@ -58,8 +58,8 @@ spec:
 Kyverno 1.20 removes the legacy `kyverno.io` PolicyException. While clusters move to CEL policies,
 exception-recommender bridges existing legacy exceptions by default. Turn it off with
 `--enable-migration-bridges=false` (Helm `migrationBridges.enabled`, default `true`) where ER runs
-for another reason and bridging is not wanted. security-bundle keeps ER itself off (`enabled: false`),
-so turning ER on for a cluster is what starts bridging its legacy exceptions.
+for another reason and bridging is not wanted. security-bundle and the app collections keep ER itself
+off (`enabled: false`), so turning ER on for a cluster is what starts bridging its legacy exceptions.
 
 For every `kyverno.io/v2` PolicyException that kyverno-policy-operator did not generate, it writes a
 Giant Swarm PolicyException:
@@ -96,7 +96,8 @@ When the source is deleted, the bridge is deleted and garbage collection removes
 When a same-name source in another namespace is waiting for the name, it takes it at the next resync.
 A bridge is kept while the legacy CRD is missing or being deleted, or while the API server cannot
 confirm the source is gone. Uninstalling exception-recommender, or setting
-`migrationBridges.enabled: false`, leaves the bridges in place; find them by label and annotation:
+`migrationBridges.enabled: false`, leaves the bridges in place; find them by label and annotation
+(`-n policy-exceptions` must match `--bridge-namespace` / `migrationBridges.namespace`):
 
 ```sh
 kubectl get policyexceptions.policy.giantswarm.io -n policy-exceptions \
@@ -116,9 +117,13 @@ Metrics:
 - `exception_recommender_translation_errors_total{reason}` (`lookup_failed`, `apply_failed`, `delete_failed`)
 - `exception_recommender_last_resync_timestamp_seconds`
 
-Upgrade a cluster to Kyverno 1.20 only once no source has a bridge, that is, when
-`exception_recommender_policyexception_migration_info{migrated_name!=""}` returns nothing. This
-covers `migrated` sources and sources that drifted to `lossy` or `unsupported` and kept their bridge.
+Upgrade a cluster to Kyverno 1.20 only once the kubectl listing above returns nothing — that's the
+authoritative check, since it covers `migrated` sources and sources that drifted to `lossy` or
+`unsupported` and kept their bridge.
+`exception_recommender_policyexception_migration_info{migrated_name!=""}` returning nothing is an
+ongoing signal of the same thing, but only while migration bridges are enabled and ER is running; it
+can't replace the listing, since a failed list, a dropped source, or ER not running all look the same
+as no bridges.
 
 The older PolicyReport to AutomatedException flow only runs with `--enable-automated-exceptions`
 (Helm `recommender.enableAutomatedExceptions`, default `false`).
