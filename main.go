@@ -90,7 +90,7 @@ func main() {
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 	opts := zap.Options{
-		Development: true,
+		Development: false,
 	}
 	flag.Func("target-categories",
 		"A comma-separated list of Kyverno Policy Categories to be included in the Draft generation. For example: 'Pod Security Standards'",
