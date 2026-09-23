@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Migration bridges (`--enable-migration-bridges`, Helm `migrationBridges.enabled`, default `true`): write a Giant Swarm PolicyException `<name>-migrated` for each legacy `kyverno.io/v2` PolicyException that translates exactly, keep it on drift, and remove it when the source goes. Adds migration metrics. On by default in the chart; security-bundle keeps ER itself off (`enabled: false`).
+
 ### Changed
 
+- Start the PolicyReport and PolicyManifest controllers only with `--enable-automated-exceptions` (Helm `recommender.enableAutomatedExceptions`, default `false`).
 - Regenerate values.schema.json for the strict schema configuration.
 
 ## [0.3.0] - 2026-08-14

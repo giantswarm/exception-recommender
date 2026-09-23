@@ -53,6 +53,76 @@ spec:
 
 **Note:** This requires to have [kyverno-policy-operator](https://github.com/giantswarm/kyverno-policy-operator/) installed
 
+## Migration bridges
+
+Kyverno 1.20 removes the legacy `kyverno.io` PolicyException. While clusters move to CEL policies,
+exception-recommender bridges existing legacy exceptions by default. Turn it off with
+`--enable-migration-bridges=false` (Helm `migrationBridges.enabled`, default `true`) where ER runs
+for another reason and bridging is not wanted. security-bundle keeps ER itself off (`enabled: false`),
+so turning ER on for a cluster is what starts bridging its legacy exceptions.
+
+For every `kyverno.io/v2` PolicyException that kyverno-policy-operator did not generate, it writes a
+Giant Swarm PolicyException:
+
+- name `<name>-migrated`, in `--bridge-namespace` (Helm `migrationBridges.namespace`, default
+  `policy-exceptions`, which must be kyverno-policy-operator's destination namespace);
+- label `app.kubernetes.io/managed-by: exception-recommender`;
+- annotation `policy.giantswarm.io/migrated-from: <namespace>/<name>`;
+- `policies` from `exceptions[].policyName`, one target per kind in `match`. A kind's group and
+  version are dropped, so `v1/Pod` becomes `Pod` and `apps/v1/Deployment` becomes `Deployment`.
+
+kyverno-policy-operator turns the bridge into a `policies.kyverno.io/v1` PolicyException labelled
+`policy.giantswarm.io/source: exception-recommender`. exception-recommender never writes Kyverno
+resources.
+
+A bridge is only written when it exempts the same requests as its source:
+
+| State | Meaning |
+|---|---|
+| `migrated` | The bridge exists. |
+| `pending` | The bridge is about to be written (`bridge_missing`), or neither a ClusterPolicy nor a ValidatingPolicy, MutatingPolicy or ImageValidatingPolicy of that name exists (`policy_not_found`). |
+| `lossy` | `ruleNames` do not cover every rule of the ClusterPolicy (`rule_names`); a CEL exception would exempt the whole policy. |
+| `unsupported` | The source uses something a Giant Swarm PolicyException cannot express: `conditions`, `pod_security`, `subjects`, `roles`, `cluster_roles`, `selector`, `namespace_selector`, `annotations`, `operations`, `match_all`, `no_match`, `no_kinds`, `kind_format` (a wildcard in the kind, or a subresource such as `Pod/exec`), `no_policies`, `namespaced_policy` or `name_too_long`. |
+| `collision` | The bridge's name is taken (`name_taken`), either by another object, which is never changed, or by a same-name source in another namespace. While no bridge exists, the source whose `namespace/name` sorts lowest gets it. An existing bridge never changes owner. |
+
+When no ClusterPolicy of the source's policy name exists but a CEL policy of that name does, the
+source is bridged without checking `ruleNames`, because CEL policies have no rules.
+
+A source that stops translating exactly after it was bridged keeps its bridge, unchanged. It then
+reports `lossy` or `unsupported` with `migrated_name` still set, and exception-recommender logs it at
+Info.
+
+When the source is deleted, the bridge is deleted and garbage collection removes the CEL exception.
+When a same-name source in another namespace is waiting for the name, it takes it at the next resync.
+A bridge is kept while the legacy CRD is missing or being deleted, or while the API server cannot
+confirm the source is gone. Uninstalling exception-recommender, or setting
+`migrationBridges.enabled: false`, leaves the bridges in place; find them by label and annotation:
+
+```sh
+kubectl get policyexceptions.policy.giantswarm.io -n policy-exceptions \
+  -l app.kubernetes.io/managed-by=exception-recommender \
+  -o custom-columns='NAME:.metadata.name,FROM:.metadata.annotations.policy\.giantswarm\.io/migrated-from'
+```
+
+Rows with `FROM` set are bridges; the label alone is not enough, since a manually created
+PolicyException can carry it too.
+
+Metrics:
+
+- `exception_recommender_legacy_policyexceptions{state}`
+- `exception_recommender_policyexception_migration_info{source_namespace,source_name,migrated_name,state,reason}`
+  (`migrated_name` is empty unless the source's own bridge exists)
+- `exception_recommender_bridges_removed_total`
+- `exception_recommender_translation_errors_total{reason}` (`lookup_failed`, `apply_failed`, `delete_failed`)
+- `exception_recommender_last_resync_timestamp_seconds`
+
+Upgrade a cluster to Kyverno 1.20 only once no source has a bridge, that is, when
+`exception_recommender_policyexception_migration_info{migrated_name!=""}` returns nothing. This
+covers `migrated` sources and sources that drifted to `lossy` or `unsupported` and kept their bridge.
+
+The older PolicyReport to AutomatedException flow only runs with `--enable-automated-exceptions`
+(Helm `recommender.enableAutomatedExceptions`, default `false`).
+
 ## Installing
 
 There are several ways to install this app onto a workload cluster.
