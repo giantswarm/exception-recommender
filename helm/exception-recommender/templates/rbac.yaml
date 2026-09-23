@@ -36,6 +36,38 @@ rules:
       - get
       - list
       - watch
+  {{- if .Values.migrationBridges.enabled }}
+  # Read-only: exception-recommender never writes Kyverno resources.
+  - apiGroups:
+      - kyverno.io
+    resources:
+      - policyexceptions
+      - clusterpolicies
+    verbs:
+      - get
+      - list
+      - watch
+  # Read-only: a source whose ClusterPolicy is gone is bridged when a CEL policy of that name exists.
+  - apiGroups:
+      - policies.kyverno.io
+    resources:
+      - validatingpolicies
+      - mutatingpolicies
+      - imagevalidatingpolicies
+    verbs:
+      - get
+      - list
+      - watch
+  # Bridges are only deleted while the legacy CRD exists and is not being deleted.
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    resourceNames:
+      - policyexceptions.kyverno.io
+    verbs:
+      - get
+  {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -51,3 +83,42 @@ roleRef:
   kind: ClusterRole
   name: {{ include "resource.default.name"  . }}
   apiGroup: rbac.authorization.k8s.io
+{{- if .Values.migrationBridges.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "resource.default.name" . }}-bridges
+  namespace: {{ .Values.migrationBridges.namespace }}
+  labels:
+    {{- include "labels.common" . | nindent 4 }}
+rules:
+  - apiGroups:
+      - policy.giantswarm.io
+    resources:
+      - policyexceptions
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "resource.default.name" . }}-bridges
+  namespace: {{ .Values.migrationBridges.namespace }}
+  labels:
+    {{- include "labels.common" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "resource.default.name" . }}
+    namespace: {{ include "resource.default.namespace" . }}
+roleRef:
+  kind: Role
+  name: {{ include "resource.default.name" . }}-bridges
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

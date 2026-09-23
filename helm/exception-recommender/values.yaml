@@ -85,3 +85,12 @@ recommender:
   # policy-meta-operator produces; that operator is not in use.
   enableAutomatedExceptions: false
   createNamespace: false
+
+# Migration bridges: one Giant Swarm PolicyException "<name>-migrated" per legacy kyverno.io/v2
+# PolicyException that translates exactly, so kyverno-policy-operator writes a policies.kyverno.io
+# exception for it. A migration aid for the Kyverno 1.20 upgrade; on by default, so enabling ER
+# bridges a cluster's legacy exceptions. Set to false to run ER without bridging.
+migrationBridges:
+  enabled: true
+  # Must be kyverno-policy-operator's destination namespace.
+  namespace: policy-exceptions
