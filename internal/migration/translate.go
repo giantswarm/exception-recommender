@@ -95,6 +95,7 @@ func Translate(src *kyvernov2.PolicyException, lookup RuleLookup) (Translation, 
 			return Translation{State: StateLossy, Reason: ReasonRuleNames, Spec: spec}, nil
 		}
 	}
+	// lossy/unsupported outrank pending: a lossy exception above already returned before reaching here.
 	if pending {
 		return Translation{State: StatePending, Reason: ReasonPolicyNotFound, Spec: spec}, nil
 	}

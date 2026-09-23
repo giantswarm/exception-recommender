@@ -111,6 +111,18 @@ func TestTranslateStates(t *testing.T) {
 		}},
 		{name: "neither ClusterPolicy nor CEL policy is pending", lookup: rules(nil),
 			wantState: StatePending, wantReason: ReasonPolicyNotFound},
+		{name: "missing policy then lossy rules is lossy, not pending", lookup: rules(map[string][]string{
+			"disallow-host-path": {"host-path", "autogen-host-path", "autogen-cronjob-host-path"},
+		}), mutate: func(p *kyvernov2.PolicyException) {
+			p.Spec.Exceptions[1].RuleNames = []string{"host-path"}
+		}, wantState: StateLossy, wantReason: ReasonRuleNames},
+		{name: "lossy rules then missing policy is lossy, not pending", lookup: rules(map[string][]string{
+			"require-run-as-nonroot": {"run-as-non-root", "autogen-run-as-non-root", "autogen-cronjob-run-as-non-root"},
+		}), mutate: func(p *kyvernov2.PolicyException) {
+			p.Spec.Exceptions[0].RuleNames = []string{"run-as-non-root"}
+		}, wantState: StateLossy, wantReason: ReasonRuleNames},
+		{name: "both policies missing is pending", lookup: rules(nil),
+			wantState: StatePending, wantReason: ReasonPolicyNotFound},
 		{name: "unsupported beats lossy", mutate: func(p *kyvernov2.PolicyException) {
 			p.Spec.Exceptions[0].RuleNames = nil
 			p.Spec.PodSecurity = []kyvernov1.PodSecurityStandard{{ControlName: "Capabilities"}}
