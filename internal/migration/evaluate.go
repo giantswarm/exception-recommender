@@ -34,7 +34,7 @@ func (s Status) OwnsBridge(src client.Object) bool {
 
 // Evaluate decides the migration state of src.
 func Evaluate(ctx context.Context, c client.Reader, bridgeNamespace string, src *kyvernov2.PolicyException) (Status, error) {
-	logger := log.FromContext(ctx).WithValues("source", SourceKey(src))
+	logger := log.FromContext(ctx)
 
 	lookup := PolicyRules(ctx, c)
 	translation, err := Translate(src, lookup)

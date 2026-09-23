@@ -15,7 +15,13 @@ import (
 	"github.com/giantswarm/exception-recommender/internal/migration"
 )
 
-const testBridgeNamespace = "policy-exceptions"
+const (
+	testBridgeNamespace = "policy-exceptions"
+	testPolicyName      = "require-run-as-nonroot"
+	// stalePolicy is the policy of existingBridge, so a test can tell whether the bridge was rewritten.
+	stalePolicy = "stale"
+	kindPod     = "Pod"
+)
 
 var sourceKey = types.NamespacedName{Namespace: "giantswarm", Name: "cilium"}
 var bridgeKey = types.NamespacedName{Namespace: testBridgeNamespace, Name: "cilium-migrated"}
@@ -34,20 +40,25 @@ func unitScheme(t *testing.T) *runtime.Scheme {
 }
 
 func legacyCRD() *apiextensionsv1.CustomResourceDefinition {
-	return &apiextensionsv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: migration.LegacyCRDName}}
+	return &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: migration.LegacyCRDName},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{Name: "v2", Served: true, Storage: true}},
+		},
+	}
 }
 
 func nonrootPolicy() *kyvernov1.ClusterPolicy {
-	p := &kyvernov1.ClusterPolicy{ObjectMeta: metav1.ObjectMeta{Name: "require-run-as-nonroot"}}
+	p := &kyvernov1.ClusterPolicy{ObjectMeta: metav1.ObjectMeta{Name: testPolicyName}}
 	p.Spec.Rules = []kyvernov1.Rule{{Name: "run-as-non-root"}, {Name: "autogen-run-as-non-root"}}
 	return p
 }
 
 func legacySource(ruleNames ...string) *kyvernov2.PolicyException {
 	src := &kyvernov2.PolicyException{ObjectMeta: metav1.ObjectMeta{Name: sourceKey.Name, Namespace: sourceKey.Namespace}}
-	src.Spec.Exceptions = []kyvernov2.Exception{{PolicyName: "require-run-as-nonroot", RuleNames: ruleNames}}
+	src.Spec.Exceptions = []kyvernov2.Exception{{PolicyName: testPolicyName, RuleNames: ruleNames}}
 	src.Spec.Match.Any = kyvernov1.ResourceFilters{{ResourceDescription: kyvernov1.ResourceDescription{
-		Kinds: []string{"DaemonSet", "Pod"}, Namespaces: []string{"kube-system"}, Names: []string{"cilium*"},
+		Kinds: []string{"DaemonSet", kindPod}, Namespaces: []string{"kube-system"}, Names: []string{"cilium*"},
 	}}}
 	return src
 }
@@ -56,7 +67,7 @@ func existingBridge(labels map[string]string, source string) *policyAPI.PolicyEx
 	return &policyAPI.PolicyException{
 		ObjectMeta: metav1.ObjectMeta{Name: bridgeKey.Name, Namespace: bridgeKey.Namespace, Labels: labels,
 			Annotations: map[string]string{migration.AnnotationMigratedFrom: source}},
-		Spec: policyAPI.PolicyExceptionSpec{Policies: []string{"stale"}, Targets: []policyAPI.Target{}},
+		Spec: policyAPI.PolicyExceptionSpec{Policies: []string{stalePolicy}, Targets: []policyAPI.Target{}},
 	}
 }
 

@@ -59,11 +59,11 @@ func ownBridge(src *kyvernov2.PolicyException) *policyAPI.PolicyException {
 
 func TestEvaluate(t *testing.T) {
 	policies := []client.Object{
-		clusterPolicy("require-run-as-nonroot", "run-as-non-root", "autogen-run-as-non-root"),
-		clusterPolicy("disallow-host-path", "host-path", "autogen-host-path"),
+		clusterPolicy(nonrootPolicy, nonrootRule, nonrootAutogenRule),
+		clusterPolicy(hostPathPolicy, hostPathRule, hostPathAutogenRule),
 	}
-	celOnly := []client.Object{validatingPolicy("require-run-as-nonroot"), validatingPolicy("disallow-host-path")}
-	lossy := source(func(p *kyvernov2.PolicyException) { p.Spec.Exceptions[0].RuleNames = []string{"run-as-non-root"} })
+	celOnly := []client.Object{validatingPolicy(nonrootPolicy), validatingPolicy(hostPathPolicy)}
+	lossy := source(func(p *kyvernov2.PolicyException) { p.Spec.Exceptions[0].RuleNames = []string{nonrootRule} })
 	unsupported := source(func(p *kyvernov2.PolicyException) { p.Spec.Match.Any[0].Selector = &metav1.LabelSelector{} })
 	// "default/cilium" sorts before "giantswarm/cilium", the namespace of source(nil).
 	lower := func() *kyvernov2.PolicyException { return inNamespace(source(nil), "default") }
@@ -126,21 +126,21 @@ func TestEvaluate(t *testing.T) {
 }
 
 func TestPolicyRulesIncludesAutogen(t *testing.T) {
-	p := clusterPolicy("disallow-host-path", "host-path")
-	p.Status.Autogen.Rules = []kyvernov1.Rule{{Name: "autogen-host-path"}}
+	p := clusterPolicy(hostPathPolicy, hostPathRule)
+	p.Status.Autogen.Rules = []kyvernov1.Rule{{Name: hostPathAutogenRule}}
 	c := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(p).Build()
 
-	got, found, err := PolicyRules(context.Background(), c)("disallow-host-path")
+	got, found, err := PolicyRules(context.Background(), c)(hostPathPolicy)
 	if err != nil || !found {
 		t.Fatalf("got found %v err %v", found, err)
 	}
-	if len(got) != 2 || got[0] != "host-path" || got[1] != "autogen-host-path" {
+	if len(got) != 2 || got[0] != hostPathRule || got[1] != hostPathAutogenRule {
 		t.Fatalf("got %v", got)
 	}
 }
 
 func TestPolicyRulesCELPolicies(t *testing.T) {
-	meta := metav1.ObjectMeta{Name: "disallow-host-path"}
+	meta := metav1.ObjectMeta{Name: hostPathPolicy}
 	noKind := interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 		if _, ok := obj.(*kyvernov1.ClusterPolicy); ok {
 			return c.Get(ctx, key, obj, opts...)
@@ -161,7 +161,7 @@ func TestPolicyRulesCELPolicies(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			c := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(tc.objects...).WithInterceptorFuncs(tc.funcs).Build()
-			got, found, err := PolicyRules(context.Background(), c)("disallow-host-path")
+			got, found, err := PolicyRules(context.Background(), c)(hostPathPolicy)
 			if err != nil || found != tc.wantFound || got != nil {
 				t.Fatalf("got rules %v found %v err %v, want no rules, found %v", got, found, err, tc.wantFound)
 			}

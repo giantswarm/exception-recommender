@@ -20,19 +20,21 @@ import (
 
 var _ = Describe("LegacyException controller", Ordered, func() {
 	const (
-		timeout  = 10 * time.Second
-		interval = 250 * time.Millisecond
+		timeout         = 10 * time.Second
+		interval        = 250 * time.Millisecond
+		policyName      = "envtest-policy"
+		sourceNamespace = "default"
 	)
 	bridgeKey := types.NamespacedName{Namespace: bridgeNamespace, Name: "envtest-app-migrated"}
 	var src *kyvernov2.PolicyException
 
 	BeforeAll(func() {
 		policy := &kyvernov1.ClusterPolicy{
-			ObjectMeta: metav1.ObjectMeta{Name: "envtest-policy"},
+			ObjectMeta: metav1.ObjectMeta{Name: policyName},
 			Spec: kyvernov1.Spec{Rules: []kyvernov1.Rule{{
 				Name: "check",
 				MatchResources: kyvernov1.MatchResources{Any: kyvernov1.ResourceFilters{
-					{ResourceDescription: kyvernov1.ResourceDescription{Kinds: []string{"Pod"}}},
+					{ResourceDescription: kyvernov1.ResourceDescription{Kinds: []string{kindPod}}},
 				}},
 				Validation: &kyvernov1.Validation{
 					Message:    "containers must be named",
@@ -43,13 +45,13 @@ var _ = Describe("LegacyException controller", Ordered, func() {
 		Expect(k8sClient.Create(context.Background(), policy)).To(Succeed())
 
 		src = &kyvernov2.PolicyException{
-			ObjectMeta: metav1.ObjectMeta{Name: "envtest-app", Namespace: "default"},
+			ObjectMeta: metav1.ObjectMeta{Name: "envtest-app", Namespace: sourceNamespace},
 			Spec: kyvernov2.PolicyExceptionSpec{
-				Exceptions: []kyvernov2.Exception{{PolicyName: "envtest-policy", RuleNames: []string{"check"}}},
+				Exceptions: []kyvernov2.Exception{{PolicyName: policyName, RuleNames: []string{"check"}}},
 			},
 		}
 		src.Spec.Match.Any = kyvernov1.ResourceFilters{{ResourceDescription: kyvernov1.ResourceDescription{
-			Kinds: []string{"Deployment", "Pod"}, Namespaces: []string{"default"}, Names: []string{"envtest-app*"},
+			Kinds: []string{"Deployment", kindPod}, Namespaces: []string{sourceNamespace}, Names: []string{"envtest-app*"},
 		}}}
 		Expect(k8sClient.Create(context.Background(), src)).To(Succeed())
 	})
@@ -61,7 +63,7 @@ var _ = Describe("LegacyException controller", Ordered, func() {
 			g.Expect(bridge.Labels).To(HaveKeyWithValue(migration.ManagedByLabel, migration.ComponentName))
 			g.Expect(bridge.Annotations).To(HaveKeyWithValue(migration.AnnotationMigratedFrom, "default/envtest-app"))
 			g.Expect(bridge.OwnerReferences).To(BeEmpty())
-			g.Expect(bridge.Spec.Policies).To(Equal([]string{"envtest-policy"}))
+			g.Expect(bridge.Spec.Policies).To(Equal([]string{policyName}))
 			g.Expect(bridge.Spec.Targets).To(HaveLen(2))
 		}, timeout, interval).Should(Succeed())
 	})
@@ -102,7 +104,7 @@ var _ = Describe("LegacyException controller", Ordered, func() {
 				Labels:      map[string]string{migration.ManagedByLabel: migration.ComponentName},
 				Annotations: map[string]string{migration.AnnotationMigratedFrom: "default/gone"},
 			},
-			Spec: policyAPI.PolicyExceptionSpec{Policies: []string{"envtest-policy"}, Targets: []policyAPI.Target{}},
+			Spec: policyAPI.PolicyExceptionSpec{Policies: []string{policyName}, Targets: []policyAPI.Target{}},
 		}
 		Expect(k8sClient.Create(context.Background(), orphan)).To(Succeed())
 		Eventually(func() bool {
@@ -115,7 +117,7 @@ var _ = Describe("LegacyException controller", Ordered, func() {
 		handWritten := &policyAPI.PolicyException{
 			ObjectMeta: metav1.ObjectMeta{Name: "hand-written-migrated", Namespace: bridgeNamespace,
 				Annotations: map[string]string{migration.AnnotationMigratedFrom: "default/hand-written"}},
-			Spec: policyAPI.PolicyExceptionSpec{Policies: []string{"envtest-policy"}, Targets: []policyAPI.Target{}},
+			Spec: policyAPI.PolicyExceptionSpec{Policies: []string{policyName}, Targets: []policyAPI.Target{}},
 		}
 		Expect(k8sClient.Create(context.Background(), handWritten)).To(Succeed())
 		Consistently(func() error {

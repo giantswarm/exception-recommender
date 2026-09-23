@@ -13,6 +13,20 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// Names shared by the tests.
+const (
+	nonrootPolicy       = "require-run-as-nonroot"
+	nonrootRule         = "run-as-non-root"
+	nonrootAutogenRule  = "autogen-run-as-non-root"
+	hostPathPolicy      = "disallow-host-path"
+	hostPathRule        = "host-path"
+	hostPathAutogenRule = "autogen-host-path"
+	ciliumNamespace     = "kube-system"
+	ciliumNames         = "cilium*"
+	kindPod             = "Pod"
+	kindDeployment      = "Deployment"
+)
+
 // rules is a RuleLookup backed by a map; a missing key is a policy that does not exist, and a nil
 // value a CEL policy, which has no rules.
 func rules(policies map[string][]string) RuleLookup {
@@ -23,16 +37,16 @@ func rules(policies map[string][]string) RuleLookup {
 }
 
 var clusterPolicies = rules(map[string][]string{
-	"require-run-as-nonroot": {"run-as-non-root", "autogen-run-as-non-root", "autogen-cronjob-run-as-non-root"},
-	"disallow-host-path":     {"host-path", "autogen-host-path", "autogen-cronjob-host-path"},
+	nonrootPolicy:  {nonrootRule, nonrootAutogenRule, "autogen-cronjob-run-as-non-root"},
+	hostPathPolicy: {hostPathRule, hostPathAutogenRule, "autogen-cronjob-host-path"},
 })
 
 // celPolicies has ValidatingPolicies of the same names and no ClusterPolicies.
-var celOnly = rules(map[string][]string{"require-run-as-nonroot": nil, "disallow-host-path": nil})
+var celOnly = rules(map[string][]string{nonrootPolicy: nil, hostPathPolicy: nil})
 
 func filter(kinds ...string) kyvernov1.ResourceFilter {
 	return kyvernov1.ResourceFilter{ResourceDescription: kyvernov1.ResourceDescription{
-		Kinds: kinds, Namespaces: []string{"kube-system"}, Names: []string{"cilium*"},
+		Kinds: kinds, Namespaces: []string{ciliumNamespace}, Names: []string{ciliumNames},
 	}}
 }
 
@@ -41,12 +55,12 @@ func source(mutate func(*kyvernov2.PolicyException)) *kyvernov2.PolicyException 
 		ObjectMeta: metav1.ObjectMeta{Name: "cilium", Namespace: "giantswarm"},
 		Spec: kyvernov2.PolicyExceptionSpec{
 			Exceptions: []kyvernov2.Exception{
-				{PolicyName: "require-run-as-nonroot", RuleNames: []string{"run-as-non-root", "autogen-run-as-non-root"}},
-				{PolicyName: "disallow-host-path", RuleNames: []string{"host-path", "autogen-host-path"}},
+				{PolicyName: nonrootPolicy, RuleNames: []string{nonrootRule, nonrootAutogenRule}},
+				{PolicyName: hostPathPolicy, RuleNames: []string{hostPathRule, hostPathAutogenRule}},
 			},
 		},
 	}
-	src.Spec.Match.Any = kyvernov1.ResourceFilters{filter("DaemonSet", "Pod")}
+	src.Spec.Match.Any = kyvernov1.ResourceFilters{filter("DaemonSet", kindPod)}
 	if mutate != nil {
 		mutate(src)
 	}
@@ -59,10 +73,10 @@ func TestTranslateExact(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := Translation{Spec: policyAPI.PolicyExceptionSpec{
-		Policies: []string{"require-run-as-nonroot", "disallow-host-path"},
+		Policies: []string{nonrootPolicy, hostPathPolicy},
 		Targets: []policyAPI.Target{
-			{Kind: "DaemonSet", Names: []string{"cilium*"}, Namespaces: []string{"kube-system"}},
-			{Kind: "Pod", Names: []string{"cilium*"}, Namespaces: []string{"kube-system"}},
+			{Kind: "DaemonSet", Names: []string{ciliumNames}, Namespaces: []string{ciliumNamespace}},
+			{Kind: kindPod, Names: []string{ciliumNames}, Namespaces: []string{ciliumNamespace}},
 		},
 	}}
 	if !reflect.DeepEqual(got, want) {
@@ -83,7 +97,7 @@ func TestTranslateStates(t *testing.T) {
 			p.Spec.Match.All, p.Spec.Match.Any = p.Spec.Match.Any, nil
 		}},
 		{name: "deprecated name field is exact", mutate: func(p *kyvernov2.PolicyException) {
-			p.Spec.Match.Any[0].Names, p.Spec.Match.Any[0].Name = nil, "cilium*"
+			p.Spec.Match.Any[0].Names, p.Spec.Match.Any[0].Name = nil, ciliumNames
 		}},
 		{name: "wildcard rule names skip the lookup", lookup: rules(nil), mutate: func(p *kyvernov2.PolicyException) {
 			for i := range p.Spec.Exceptions {
@@ -97,13 +111,13 @@ func TestTranslateStates(t *testing.T) {
 		{name: "name too long", mutate: func(p *kyvernov2.PolicyException) { p.Name = longName },
 			wantState: StateUnsupported, wantReason: ReasonNameTooLong},
 		{name: "missing rule is lossy", mutate: func(p *kyvernov2.PolicyException) {
-			p.Spec.Exceptions[0].RuleNames = []string{"run-as-non-root"}
+			p.Spec.Exceptions[0].RuleNames = []string{nonrootRule}
 		}, wantState: StateLossy, wantReason: ReasonRuleNames},
 		{name: "empty rule names are lossy", mutate: func(p *kyvernov2.PolicyException) {
 			p.Spec.Exceptions[0].RuleNames = nil
 		}, wantState: StateLossy, wantReason: ReasonRuleNames},
 		{name: "autogen-cronjob rules are required for CronJob targets", mutate: func(p *kyvernov2.PolicyException) {
-			p.Spec.Match.Any = kyvernov1.ResourceFilters{filter("CronJob", "Job", "Pod")}
+			p.Spec.Match.Any = kyvernov1.ResourceFilters{filter("CronJob", "Job", kindPod)}
 		}, wantState: StateLossy, wantReason: ReasonRuleNames},
 		{name: "CEL policy without ClusterPolicy is exact", lookup: celOnly},
 		{name: "CEL policy without ClusterPolicy ignores rule names", lookup: celOnly, mutate: func(p *kyvernov2.PolicyException) {
@@ -112,14 +126,14 @@ func TestTranslateStates(t *testing.T) {
 		{name: "neither ClusterPolicy nor CEL policy is pending", lookup: rules(nil),
 			wantState: StatePending, wantReason: ReasonPolicyNotFound},
 		{name: "missing policy then lossy rules is lossy, not pending", lookup: rules(map[string][]string{
-			"disallow-host-path": {"host-path", "autogen-host-path", "autogen-cronjob-host-path"},
+			hostPathPolicy: {hostPathRule, hostPathAutogenRule, "autogen-cronjob-host-path"},
 		}), mutate: func(p *kyvernov2.PolicyException) {
-			p.Spec.Exceptions[1].RuleNames = []string{"host-path"}
+			p.Spec.Exceptions[1].RuleNames = []string{hostPathRule}
 		}, wantState: StateLossy, wantReason: ReasonRuleNames},
 		{name: "lossy rules then missing policy is lossy, not pending", lookup: rules(map[string][]string{
-			"require-run-as-nonroot": {"run-as-non-root", "autogen-run-as-non-root", "autogen-cronjob-run-as-non-root"},
+			nonrootPolicy: {nonrootRule, nonrootAutogenRule, "autogen-cronjob-run-as-non-root"},
 		}), mutate: func(p *kyvernov2.PolicyException) {
-			p.Spec.Exceptions[0].RuleNames = []string{"run-as-non-root"}
+			p.Spec.Exceptions[0].RuleNames = []string{nonrootRule}
 		}, wantState: StateLossy, wantReason: ReasonRuleNames},
 		{name: "both policies missing is pending", lookup: rules(nil),
 			wantState: StatePending, wantReason: ReasonPolicyNotFound},
@@ -132,8 +146,13 @@ func TestTranslateStates(t *testing.T) {
 		{name: "no match", mutate: func(p *kyvernov2.PolicyException) { p.Spec.Match.Any = nil },
 			wantState: StateUnsupported, wantReason: ReasonNoMatch},
 		{name: "match.all with two filters", mutate: func(p *kyvernov2.PolicyException) {
-			p.Spec.Match.All, p.Spec.Match.Any = kyvernov1.ResourceFilters{filter("Pod"), filter("DaemonSet")}, nil
+			p.Spec.Match.All, p.Spec.Match.Any = kyvernov1.ResourceFilters{filter(kindPod), filter("DaemonSet")}, nil
 		}, wantState: StateUnsupported, wantReason: ReasonMatchAll},
+		{name: "match.any and match.all together", mutate: func(p *kyvernov2.PolicyException) {
+			p.Spec.Match.All = kyvernov1.ResourceFilters{filter("DaemonSet")}
+		}, wantState: StateUnsupported, wantReason: ReasonMatchAll},
+		{name: "name and names together", mutate: func(p *kyvernov2.PolicyException) { p.Spec.Match.Any[0].Name = "cilium-agent" },
+			wantState: StateUnsupported, wantReason: ReasonNameAndNames},
 		{name: "no policies", mutate: func(p *kyvernov2.PolicyException) { p.Spec.Exceptions = nil },
 			wantState: StateUnsupported, wantReason: ReasonNoPolicies},
 		{name: "subjects", mutate: func(p *kyvernov2.PolicyException) {
@@ -180,12 +199,12 @@ func TestTranslateKindFormats(t *testing.T) {
 		kind     string
 		wantKind string // "" means unsupported with reason kind_format
 	}{
-		{kind: "Pod", wantKind: "Pod"},
-		{kind: "v1/Pod", wantKind: "Pod"},
-		{kind: "apps/v1/Deployment", wantKind: "Deployment"},
+		{kind: kindPod, wantKind: kindPod},
+		{kind: "v1/Pod", wantKind: kindPod},
+		{kind: "apps/v1/Deployment", wantKind: kindDeployment},
 		{kind: "autoscaling/v2beta1/HorizontalPodAutoscaler", wantKind: "HorizontalPodAutoscaler"},
-		{kind: "*/Deployment", wantKind: "Deployment"},
-		{kind: "apps/*/Deployment", wantKind: "Deployment"},
+		{kind: "*/Deployment", wantKind: kindDeployment},
+		{kind: "apps/*/Deployment", wantKind: kindDeployment},
 		{kind: "Pod/exec"},
 		{kind: "Pod.exec"},
 		{kind: "v1/Pod/exec"},
@@ -227,7 +246,7 @@ func TestTranslateLookupError(t *testing.T) {
 func TestTranslateNilListsBecomeEmpty(t *testing.T) {
 	// The gspolex CRD requires names and namespaces; null would be rejected.
 	got, err := Translate(source(func(p *kyvernov2.PolicyException) {
-		p.Spec.Match.Any = kyvernov1.ResourceFilters{{ResourceDescription: kyvernov1.ResourceDescription{Kinds: []string{"Pod"}}}}
+		p.Spec.Match.Any = kyvernov1.ResourceFilters{{ResourceDescription: kyvernov1.ResourceDescription{Kinds: []string{kindPod}}}}
 	}), clusterPolicies)
 	if err != nil {
 		t.Fatal(err)
