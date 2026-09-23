@@ -186,6 +186,9 @@
                 "destinationNamespace": {
                     "type": "string"
                 },
+                "enableAutomatedExceptions": {
+                    "type": "boolean"
+                },
                 "excludeNamespaces": {
                     "type": "array",
                     "items": {

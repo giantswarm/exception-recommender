@@ -81,4 +81,7 @@ recommender:
   excludeNamespaces:
     - kube-system
     - giantswarm
+  # Create AutomatedExceptions from PolicyReports. Needs PolicyManifests in warming mode, which only
+  # policy-meta-operator produces; that operator is not in use.
+  enableAutomatedExceptions: false
   createNamespace: false
