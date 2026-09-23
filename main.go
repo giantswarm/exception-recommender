@@ -65,6 +65,7 @@ func main() {
 	var targetCategories []string
 	var excludeNamespaces []string
 	var maxJitterPercent int
+	var enableAutomatedExceptions bool
 	policyManifestCache := make(map[string]policyAPI.PolicyManifest)
 
 	// Flags
@@ -106,6 +107,8 @@ func main() {
 		})
 	flag.IntVar(&maxJitterPercent, "max-jitter-percent", 10,
 		"Spreads out re-queue interval of reports by +/- this amount to spread load.")
+	flag.BoolVar(&enableAutomatedExceptions, "enable-automated-exceptions", false,
+		"Create AutomatedExceptions from PolicyReport failures of policies whose PolicyManifest is in warming mode.")
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
@@ -123,27 +126,31 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controller.PolicyReportReconciler{
-		Client:               mgr.GetClient(),
-		Scheme:               mgr.GetScheme(),
-		TargetWorkloads:      targetWorkloads,
-		TargetCategories:     targetCategories,
-		DestinationNamespace: destinationNamespace,
-		ExcludeNamespaces:    excludeNamespaces,
-		PolicyManifestCache:  policyManifestCache,
-		MaxJitterPercent:     maxJitterPercent,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "PolicyReport")
-		os.Exit(1)
-	}
-	if err = (&controller.PolicyManifestReconciler{
-		Client:              mgr.GetClient(),
-		Scheme:              mgr.GetScheme(),
-		PolicyManifestCache: policyManifestCache,
-		MaxJitterPercent:    maxJitterPercent,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "PolicyManifest")
-		os.Exit(1)
+	if enableAutomatedExceptions {
+		if err = (&controller.PolicyReportReconciler{
+			Client:               mgr.GetClient(),
+			Scheme:               mgr.GetScheme(),
+			TargetWorkloads:      targetWorkloads,
+			TargetCategories:     targetCategories,
+			DestinationNamespace: destinationNamespace,
+			ExcludeNamespaces:    excludeNamespaces,
+			PolicyManifestCache:  policyManifestCache,
+			MaxJitterPercent:     maxJitterPercent,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "PolicyReport")
+			os.Exit(1)
+		}
+		if err = (&controller.PolicyManifestReconciler{
+			Client:              mgr.GetClient(),
+			Scheme:              mgr.GetScheme(),
+			PolicyManifestCache: policyManifestCache,
+			MaxJitterPercent:    maxJitterPercent,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "PolicyManifest")
+			os.Exit(1)
+		}
+	} else {
+		setupLog.Info("automated exceptions disabled, not starting the PolicyReport and PolicyManifest controllers")
 	}
 	//+kubebuilder:scaffold:builder
 
