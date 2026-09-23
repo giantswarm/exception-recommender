@@ -79,6 +79,7 @@ var _ = BeforeSuite(func() {
 	}
 
 	logger = zap.New(zap.UseFlagOptions(&opts))
+	ctrl.SetLogger(logger)
 
 	tests.GetEnvOrSkip("KUBEBUILDER_ASSETS")
 
