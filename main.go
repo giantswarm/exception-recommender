@@ -23,14 +23,22 @@ import (
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
+	policiesv1 "github.com/kyverno/api/api/policies.kyverno.io/v1"
+	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	kyvernov2 "github.com/kyverno/kyverno/api/kyverno/v2"
 	kyverno "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	policyAPI "github.com/giantswarm/policy-api/api/v1alpha1"
@@ -53,6 +61,10 @@ func init() {
 	}
 
 	utilruntime.Must(policyAPI.AddToScheme(scheme))
+	utilruntime.Must(kyvernov1.Install(scheme))
+	utilruntime.Must(kyvernov2.Install(scheme))
+	utilruntime.Must(policiesv1.Install(scheme))
+	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -66,6 +78,8 @@ func main() {
 	var excludeNamespaces []string
 	var maxJitterPercent int
 	var enableAutomatedExceptions bool
+	var enableMigrationBridges bool
+	var bridgeNamespace string
 	policyManifestCache := make(map[string]policyAPI.PolicyManifest)
 
 	// Flags
@@ -109,13 +123,26 @@ func main() {
 		"Spreads out re-queue interval of reports by +/- this amount to spread load.")
 	flag.BoolVar(&enableAutomatedExceptions, "enable-automated-exceptions", false,
 		"Create AutomatedExceptions from PolicyReport failures of policies whose PolicyManifest is in warming mode.")
+	flag.BoolVar(&enableMigrationBridges, "enable-migration-bridges", true,
+		"Write a Giant Swarm PolicyException for each legacy kyverno.io PolicyException that translates exactly. Disable where ER runs for another reason and bridging is not wanted.")
+	flag.StringVar(&bridgeNamespace, "bridge-namespace", "policy-exceptions",
+		"The namespace of the migration bridges. Must be kyverno-policy-operator's --destination-namespace.")
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
+	cacheOptions := cache.Options{}
+	if enableMigrationBridges {
+		// Bridges live in one namespace; only cache Giant Swarm PolicyExceptions there.
+		cacheOptions.ByObject = map[client.Object]cache.ByObject{
+			&policyAPI.PolicyException{}: {Namespaces: map[string]cache.Config{bridgeNamespace: {}}},
+		}
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
+		Cache:                  cacheOptions,
 		Metrics:                server.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
@@ -153,6 +180,12 @@ func main() {
 	} else {
 		setupLog.Info("automated exceptions disabled, not starting the PolicyReport and PolicyManifest controllers")
 	}
+
+	if enableMigrationBridges {
+		setupMigrationBridges(mgr, bridgeNamespace)
+	} else {
+		setupLog.Info("migration bridges disabled")
+	}
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -169,4 +202,40 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+// setupMigrationBridges registers the legacy PolicyException controller, its resync and its metrics.
+// Without the legacy Kyverno CRDs (Kyverno 1.20) there is nothing to bridge, and no bridge is deleted.
+func setupMigrationBridges(mgr ctrl.Manager, bridgeNamespace string) {
+	present, err := controller.LegacyCRDsPresent(mgr.GetRESTMapper())
+	if err != nil {
+		setupLog.Error(err, "unable to check for legacy Kyverno CRDs")
+		os.Exit(1)
+	}
+	if !present {
+		setupLog.Info("legacy Kyverno CRDs not served, migration bridges disabled and existing bridges kept")
+		return
+	}
+
+	resync := make(chan event.GenericEvent)
+	if err := (&controller.LegacyExceptionReconciler{
+		Client:          mgr.GetClient(),
+		APIReader:       mgr.GetAPIReader(),
+		BridgeNamespace: bridgeNamespace,
+	}).SetupWithManager(mgr, resync); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "LegacyPolicyException")
+		os.Exit(1)
+	}
+	if err := mgr.Add(&controller.Resyncer{
+		APIReader: mgr.GetAPIReader(),
+		Events:    resync,
+		Interval:  controller.ResyncInterval,
+		Log:       ctrl.Log.WithName("resync"),
+	}); err != nil {
+		setupLog.Error(err, "unable to add resync")
+		os.Exit(1)
+	}
+	metrics.Registry.MustRegister(controller.BridgesRemoved, controller.TranslationErrors, controller.LastResync,
+		&controller.MigrationCollector{Reader: mgr.GetClient(), BridgeNamespace: bridgeNamespace, Log: ctrl.Log.WithName("metrics")})
+	setupLog.Info("migration bridges enabled", "namespace", bridgeNamespace)
 }
