@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Migration bridges (`--enable-migration-bridges`, Helm `migrationBridges.enabled`, default `true`): write a Giant Swarm PolicyException `<name>-migrated` for each legacy `kyverno.io/v2` PolicyException that translates exactly, keep it on drift, and remove it when the source goes. Adds migration metrics. On by default in the chart; security-bundle keeps ER itself off (`enabled: false`).
+- Migration bridges (`--enable-migration-bridges`, Helm `migrationBridges.enabled`, default `true`): write a Giant Swarm PolicyException `<name>-migrated` for each legacy `kyverno.io/v2` PolicyException that translates exactly; kept once translation stops being exact, removed once the source is gone. Adds migration metrics. security-bundle and the app collections keep ER itself off (`enabled: false`).
 
 ### Changed
 
