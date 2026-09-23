@@ -138,6 +138,18 @@
                 }
             }
         },
+        "migrationBridges": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "namespace": {
+                    "type": "string"
+                }
+            }
+        },
         "name": {
             "type": "string"
         },
