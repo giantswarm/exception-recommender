@@ -127,6 +127,7 @@ func main() {
 	}
 
 	if enableAutomatedExceptions {
+		setupLog.Info("automated exceptions enabled, starting the PolicyReport and PolicyManifest controllers")
 		if err = (&controller.PolicyReportReconciler{
 			Client:               mgr.GetClient(),
 			Scheme:               mgr.GetScheme(),
