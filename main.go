@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"errors"
 	"flag"
 	"os"
 	"strings"
@@ -219,7 +220,10 @@ func main() {
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
+		// The watcher already logged the planned restart at Info.
+		if !errors.Is(err, controller.ErrBridgeCRDsAvailable) {
+			setupLog.Error(err, "problem running manager")
+		}
 		os.Exit(1)
 	}
 }
