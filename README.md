@@ -64,8 +64,9 @@ off (`enabled: false`), so turning ER on for a cluster is what starts bridging i
 Bridges need three CRDs: `kyverno.io/v2` PolicyException, `kyverno.io/v1` ClusterPolicy and
 `policy.giantswarm.io/v1alpha1` PolicyException. ER checks for them at startup. If any is missing, it
 logs the missing ones at Info and runs without bridges: no bridge controller, resync or migration
-metrics, and existing bridges are left in place. ER stays healthy. Restart it after installing the
-CRDs to start bridging.
+metrics, and existing bridges are left in place. ER stays healthy and checks again every minute
+(logged at debug level). Once every CRD is served, it logs "migration bridge CRDs are now available,
+restarting to enable bridges" and exits, so the pod restarts with bridges on.
 
 For every `kyverno.io/v2` PolicyException that kyverno-policy-operator did not generate, it writes a
 Giant Swarm PolicyException:
