@@ -32,11 +32,9 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
-	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -137,8 +135,9 @@ func main() {
 	cfg := ctrl.GetConfigOrDie()
 
 	// Check before building the manager: it fails to start when a cached kind is not served.
+	bridgeCRDsMissing := false
 	if enableMigrationBridges {
-		missing, err := missingBridgeCRDs(cfg)
+		missing, err := controller.MissingBridgeCRDs(cfg)
 		if err != nil {
 			setupLog.Error(err, "unable to check for the migration bridge CRDs")
 			os.Exit(1)
@@ -146,6 +145,7 @@ func main() {
 		if len(missing) > 0 {
 			setupLog.Info("migration bridge CRDs not served, migration bridges disabled and existing bridges kept", "missing", missing)
 			enableMigrationBridges = false
+			bridgeCRDsMissing = true
 		}
 	}
 
@@ -190,9 +190,20 @@ func main() {
 		setupLog.Info("automated exceptions disabled, not starting the PolicyReport and PolicyManifest controllers")
 	}
 
-	if enableMigrationBridges {
+	switch {
+	case enableMigrationBridges:
 		setupMigrationBridges(mgr, bridgeNamespace)
-	} else {
+	case bridgeCRDsMissing:
+		if err := mgr.Add(&controller.BridgeCRDWatcher{
+			Check:    func() ([]string, error) { return controller.MissingBridgeCRDs(cfg) },
+			Interval: controller.BridgeCRDCheckInterval,
+			Log:      ctrl.Log.WithName("bridge-crds"),
+		}); err != nil {
+			setupLog.Error(err, "unable to add the migration bridge CRD watcher")
+			os.Exit(1)
+		}
+		setupLog.Info("migration bridges disabled, restarting once their CRDs are served", "interval", controller.BridgeCRDCheckInterval.String())
+	default:
 		setupLog.Info("migration bridges disabled")
 	}
 	//+kubebuilder:scaffold:builder
@@ -211,19 +222,6 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
-}
-
-// missingBridgeCRDs returns the kinds the migration bridges need that the API server does not serve.
-func missingBridgeCRDs(cfg *rest.Config) ([]string, error) {
-	httpClient, err := rest.HTTPClientFor(cfg)
-	if err != nil {
-		return nil, err
-	}
-	mapper, err := apiutil.NewDynamicRESTMapper(cfg, httpClient)
-	if err != nil {
-		return nil, err
-	}
-	return controller.MissingBridgeCRDs(mapper)
 }
 
 // cacheOptions scopes the Giant Swarm PolicyException cache to the bridge namespace when bridges run.
