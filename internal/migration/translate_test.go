@@ -128,6 +128,12 @@ func TestTranslateStates(t *testing.T) {
 		{name: "a wildcard kind outside batch/v1 does not need autogen-cronjob rules", mutate: func(p *kyvernov2.PolicyException) {
 			p.Spec.Match.Any = kyvernov1.ResourceFilters{filter("apps/v1/*")}
 		}},
+		{name: "a kind wildcard that cannot be CronJob does not need autogen-cronjob rules", mutate: func(p *kyvernov2.PolicyException) {
+			p.Spec.Match.Any = kyvernov1.ResourceFilters{filter("Deploy*")}
+		}},
+		{name: "a group/version wildcard kind that cannot be CronJob does not need autogen-cronjob rules", mutate: func(p *kyvernov2.PolicyException) {
+			p.Spec.Match.Any = kyvernov1.ResourceFilters{filter("apps/v1/*Set")}
+		}},
 		{name: "CEL policy without ClusterPolicy is exact", lookup: celOnly},
 		{name: "CEL policy without ClusterPolicy ignores rule names", lookup: celOnly, mutate: func(p *kyvernov2.PolicyException) {
 			p.Spec.Exceptions[0].RuleNames = nil
