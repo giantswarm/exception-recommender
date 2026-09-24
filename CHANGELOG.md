@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Delete the `AutomatedException` by resource UID instead of `<resource-name>-<kind>`, which never matched and left exceptions behind after a report stopped failing.
+- Keep the group, version and wildcards of a legacy PolicyException's kinds in the bridge's targets, instead of reducing them to the bare kind, which exempted the kind in every API group.
 
 ## [0.3.0] - 2026-08-14
 

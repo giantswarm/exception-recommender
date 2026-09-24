@@ -119,6 +119,12 @@ func TestTranslateStates(t *testing.T) {
 		{name: "autogen-cronjob rules are required for CronJob targets", mutate: func(p *kyvernov2.PolicyException) {
 			p.Spec.Match.Any = kyvernov1.ResourceFilters{filter("CronJob", "Job", kindPod)}
 		}, wantState: StateLossy, wantReason: ReasonRuleNames},
+		{name: "autogen-cronjob rules are required for a group/version/kind CronJob target", mutate: func(p *kyvernov2.PolicyException) {
+			p.Spec.Match.Any = kyvernov1.ResourceFilters{filter("batch/v1/CronJob")}
+		}, wantState: StateLossy, wantReason: ReasonRuleNames},
+		{name: "autogen-cronjob rules are required for a wildcard kind", mutate: func(p *kyvernov2.PolicyException) {
+			p.Spec.Match.Any = kyvernov1.ResourceFilters{filter("*")}
+		}, wantState: StateLossy, wantReason: ReasonRuleNames},
 		{name: "CEL policy without ClusterPolicy is exact", lookup: celOnly},
 		{name: "CEL policy without ClusterPolicy ignores rule names", lookup: celOnly, mutate: func(p *kyvernov2.PolicyException) {
 			p.Spec.Exceptions[0].RuleNames = nil
@@ -196,40 +202,50 @@ func TestTranslateStates(t *testing.T) {
 
 func TestTranslateKindFormats(t *testing.T) {
 	cases := []struct {
-		kind     string
-		wantKind string // "" means unsupported with reason kind_format
+		kind      string
+		supported bool // supported kinds are kept as written; the rest are unsupported with reason kind_format
 	}{
-		{kind: kindPod, wantKind: kindPod},
-		{kind: "v1/Pod", wantKind: kindPod},
-		{kind: "apps/v1/Deployment", wantKind: kindDeployment},
-		{kind: "autoscaling/v2beta1/HorizontalPodAutoscaler", wantKind: "HorizontalPodAutoscaler"},
-		{kind: "*/Deployment", wantKind: kindDeployment},
-		{kind: "apps/*/Deployment", wantKind: kindDeployment},
+		{kind: kindPod, supported: true},
+		{kind: "v1/Pod", supported: true},
+		{kind: "apps/v1/Deployment", supported: true},
+		{kind: "autoscaling/v2beta1/HorizontalPodAutoscaler", supported: true},
+		{kind: "*/Deployment", supported: true},
+		{kind: "apps/*/Deployment", supported: true},
+		{kind: "Deploy*", supported: true},
+		{kind: "Dae?onSet", supported: true},
+		{kind: "apps/v1/*Set", supported: true},
+		{kind: "*", supported: true},
+		{kind: ""},
 		{kind: "Pod/exec"},
 		{kind: "Pod.exec"},
 		{kind: "v1/Pod/exec"},
 		{kind: "apps/v1/Deployment/scale"},
 		{kind: "*/exec"},
-		{kind: "*"},
 		{kind: "*/*"},
-		{kind: "Dae?onSet"},
-		{kind: "apps/v1/*Set"},
+		{kind: "*/v1/Deployment"},
+		{kind: "apps/Deployment"},
 		{kind: "a/b/c/d/e"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.kind, func(t *testing.T) {
-			got, err := Translate(source(func(p *kyvernov2.PolicyException) { p.Spec.Match.Any[0].Kinds = []string{tc.kind} }), clusterPolicies)
+			got, err := Translate(source(func(p *kyvernov2.PolicyException) {
+				p.Spec.Match.Any[0].Kinds = []string{tc.kind}
+				// Wildcard rule names keep CronJob rule coverage out of this test.
+				for i := range p.Spec.Exceptions {
+					p.Spec.Exceptions[i].RuleNames = []string{"*"}
+				}
+			}), clusterPolicies)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if tc.wantKind == "" {
+			if !tc.supported {
 				if got.State != StateUnsupported || got.Reason != ReasonKindFormat {
 					t.Fatalf("got state %q reason %q, want unsupported kind_format", got.State, got.Reason)
 				}
 				return
 			}
-			if got.State != "" || len(got.Spec.Targets) != 1 || got.Spec.Targets[0].Kind != tc.wantKind {
-				t.Fatalf("got state %q targets %+v, want exact with kind %q", got.State, got.Spec.Targets, tc.wantKind)
+			if got.State != "" || len(got.Spec.Targets) != 1 || got.Spec.Targets[0].Kind != tc.kind {
+				t.Fatalf("got state %q targets %+v, want exact with kind %q", got.State, got.Spec.Targets, tc.kind)
 			}
 		})
 	}

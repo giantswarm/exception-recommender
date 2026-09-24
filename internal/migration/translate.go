@@ -69,8 +69,7 @@ func Translate(src *kyvernov2.PolicyException, lookup RuleLookup) (Translation, 
 		}
 		namespaces := append([]string{}, filter.Namespaces...)
 		for _, kind := range filter.Kinds {
-			plain, _ := targetKind(kind)
-			spec.Targets = append(spec.Targets, policyAPI.Target{Kind: plain, Names: names, Namespaces: namespaces})
+			spec.Targets = append(spec.Targets, policyAPI.Target{Kind: kind, Names: names, Namespaces: namespaces})
 		}
 	}
 	for _, exception := range src.Spec.Exceptions {
@@ -92,7 +91,7 @@ func Translate(src *kyvernov2.PolicyException, lookup RuleLookup) (Translation, 
 			pending = true
 			continue
 		}
-		if !coversRules(exception.RuleNames, rules, hasKind(spec.Targets, "CronJob")) {
+		if !coversRules(exception.RuleNames, rules, mayMatchKind(spec.Targets, "CronJob")) {
 			return Translation{State: StateLossy, Reason: ReasonRuleNames, Spec: spec}, nil
 		}
 	}
@@ -161,26 +160,20 @@ func unsupportedFilterReason(filter kyvernov1.ResourceFilter) string {
 		return ReasonNameAndNames
 	}
 	for _, kind := range filter.Kinds {
-		if _, ok := targetKind(kind); !ok {
+		if !supportedKind(kind) {
 			return ReasonKindFormat
 		}
 	}
 	return ""
 }
 
-// targetKind returns the plain kind of a Kyverno kind selector, because KPO only compares
-// object.kind. It reads the selector with Kyverno's own parser, where a version is "*" or
-// "v<N>[alpha|beta<N>]":
-//   - "Kind", "version/Kind" and "group/version/Kind" become "Kind"; the group and version are dropped.
-//   - A subresource is rejected: "Kind/sub" (two parts, the first not a version), "version/Kind/sub",
-//     "group/version/Kind/sub" and "Kind.sub".
-//   - A wildcard ("*" or "?") in the kind is rejected, and so is a selector of five or more parts.
-func targetKind(kind string) (string, bool) {
+// supportedKind reports whether a Kyverno kind selector can be a bridge target kind. The bridge keeps
+// the selector as written, group, version and wildcards included, because KPO reads it with the same
+// Kyverno parser. A subresource ("Pod/exec", "Pod.exec", "apps/Deployment", "*/v1/Deployment"), an
+// empty kind and a selector of five or more parts cannot be expressed.
+func supportedKind(kind string) bool {
 	_, _, plain, subresource := kubeutils.ParseKindSelector(kind)
-	if plain == "" || subresource != "" || strings.ContainsAny(plain, "*?") {
-		return "", false
-	}
-	return plain, true
+	return plain != "" && subresource == ""
 }
 
 // coversRules reports whether ruleNames exempt every rule. "autogen-cronjob-" rules only apply to
@@ -197,6 +190,10 @@ func coversRules(ruleNames, rules []string, cronJobTarget bool) bool {
 	return true
 }
 
-func hasKind(targets []policyAPI.Target, kind string) bool {
-	return slices.ContainsFunc(targets, func(t policyAPI.Target) bool { return t.Kind == kind })
+// mayMatchKind reports whether any target's kind selector can match kind, wildcards included.
+func mayMatchKind(targets []policyAPI.Target, kind string) bool {
+	return slices.ContainsFunc(targets, func(t policyAPI.Target) bool {
+		_, _, plain, _ := kubeutils.ParseKindSelector(t.Kind)
+		return wildcard.Match(plain, kind)
+	})
 }
