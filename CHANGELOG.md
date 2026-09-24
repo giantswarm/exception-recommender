@@ -18,10 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Regenerate values.schema.json for the strict schema configuration.
 - Log at info level in JSON by default; use `--zap-log-level=debug` for debug output or `--zap-devel` for the previous console format.
 
-### Fixed
-
-- Keep qualified kinds such as `apps/v1/Deployment` in bridge targets instead of dropping the group and version, and bridge wildcard kinds instead of reporting them `unsupported` (`kind_format`).
-
 ## [0.3.0] - 2026-08-14
 
 ### Added
