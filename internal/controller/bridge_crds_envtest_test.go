@@ -7,7 +7,9 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 var _ = Describe("Migration bridge CRD check", func() {
@@ -35,5 +37,16 @@ var _ = Describe("Migration bridge CRD check", func() {
 			Log:      logger,
 		}
 		Expect(w.Start(ctx)).To(MatchError(ErrBridgeCRDsAvailable))
+	})
+
+	It("stops the manager with an error that main recognises", func() {
+		mgr, err := ctrl.NewManager(cfg, ctrl.Options{Metrics: server.Options{BindAddress: "0"}})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(mgr.Add(&BridgeCRDWatcher{
+			Check:    func() ([]string, error) { return MissingBridgeCRDs(cfg) },
+			Interval: 10 * time.Millisecond,
+			Log:      logger,
+		})).To(Succeed())
+		Expect(mgr.Start(ctx)).To(MatchError(ErrBridgeCRDsAvailable))
 	})
 })
