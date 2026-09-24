@@ -61,6 +61,12 @@ exception-recommender bridges existing legacy exceptions by default. Turn it off
 for another reason and bridging is not wanted. security-bundle and the app collections keep ER itself
 off (`enabled: false`), so turning ER on for a cluster is what starts bridging its legacy exceptions.
 
+Bridges need three CRDs: `kyverno.io/v2` PolicyException, `kyverno.io/v1` ClusterPolicy and
+`policy.giantswarm.io/v1alpha1` PolicyException. ER checks for them at startup. If any is missing, it
+logs the missing ones at Info and runs without bridges: no bridge controller, resync or migration
+metrics, and existing bridges are left in place. ER stays healthy. Restart it after installing the
+CRDs to start bridging.
+
 For every `kyverno.io/v2` PolicyException that kyverno-policy-operator did not generate, it writes a
 Giant Swarm PolicyException:
 
@@ -71,9 +77,11 @@ Giant Swarm PolicyException:
 - `policies` from `exceptions[].policyName`, one target per kind in `match`. A kind's group and
   version are dropped, so `v1/Pod` becomes `Pod` and `apps/v1/Deployment` becomes `Deployment`.
 
-kyverno-policy-operator turns the bridge into a `policies.kyverno.io/v1` PolicyException labelled
-`policy.giantswarm.io/source: exception-recommender`. exception-recommender never writes Kyverno
-resources.
+kyverno-policy-operator recognises a bridge by that label and annotation together. It turns the
+bridge into a `policies.kyverno.io/v1` PolicyException labelled
+`policy.giantswarm.io/source: exception-recommender`, matching exactly the bridge's kinds: unlike
+other Giant Swarm PolicyExceptions, it adds no ReplicaSets, Jobs or Pods. exception-recommender never
+writes Kyverno resources.
 
 A bridge is only written when it exempts the same requests as its source:
 
@@ -108,7 +116,7 @@ kubectl get policyexceptions.policy.giantswarm.io -n policy-exceptions \
 Rows with `FROM` set are bridges; the label alone is not enough, since a manually created
 PolicyException can carry it too.
 
-Metrics:
+Metrics, exported only while bridges run:
 
 - `exception_recommender_legacy_policyexceptions{state}`
 - `exception_recommender_policyexception_migration_info{source_namespace,source_name,migrated_name,state,reason}`
@@ -117,13 +125,26 @@ Metrics:
 - `exception_recommender_translation_errors_total{reason}` (`lookup_failed`, `apply_failed`, `delete_failed`)
 - `exception_recommender_last_resync_timestamp_seconds`
 
-Upgrade a cluster to Kyverno 1.20 only once the kubectl listing above returns nothing — that's the
-authoritative check, since it covers `migrated` sources and sources that drifted to `lossy` or
-`unsupported` and kept their bridge.
-`exception_recommender_policyexception_migration_info{migrated_name!=""}` returning nothing is an
-ongoing signal of the same thing, but only while migration bridges are enabled and ER is running; it
-can't replace the listing, since a failed list, a dropped source, or ER not running all look the same
-as no bridges.
+Kyverno 1.20 removes every `kyverno.io/v2` PolicyException, bridged or not. Upgrade a cluster only
+once no `kyverno.io/v2` PolicyException without the
+`app.kubernetes.io/managed-by: kyverno-policy-operator` label remains, that is, once this prints
+`No resources found`:
+
+```sh
+kubectl get policyexceptions.kyverno.io -A \
+  -l 'app.kubernetes.io/managed-by!=kyverno-policy-operator'
+```
+
+`!=` also matches exceptions without the label, so this lists every source, including ones managed by
+Helm or Argo CD; `-l '!app.kubernetes.io/managed-by'` would miss those. A bridge does not make a
+source done, and a missing bridge does not either: `lossy` and `unsupported` sources never get one,
+and they disappear at 1.20 too. Replace each source with a Giant Swarm PolicyException of your own
+before deleting it, since deleting a source also removes its bridge.
+
+`exception_recommender_legacy_policyexceptions{state}` summed over all states is the ongoing signal,
+and it reaches `0` once no source remains. It is only valid while bridges are enabled and ER is
+running: when bridges are off or skipped at startup, or the list fails, the series is absent, not `0`.
+A source that fails to evaluate is not counted, so the kubectl check above is authoritative.
 
 The older PolicyReport to AutomatedException flow only runs with `--enable-automated-exceptions`
 (Helm `recommender.enableAutomatedExceptions`, default `false`).
