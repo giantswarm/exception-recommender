@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Regenerate values.schema.json for the strict schema configuration.
 - Log at info level in JSON by default; use `--zap-log-level=debug` for debug output or `--zap-devel` for the previous console format.
 
+### Fixed
+
+- Keep the group, version and wildcards of a legacy PolicyException's kinds in the bridge's targets, instead of reducing them to the bare kind, which exempted the kind in every API group.
+
 ## [0.3.0] - 2026-08-14
 
 ### Added

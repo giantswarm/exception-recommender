@@ -74,8 +74,8 @@ Giant Swarm PolicyException:
   `policy-exceptions`, which must be kyverno-policy-operator's destination namespace);
 - label `app.kubernetes.io/managed-by: exception-recommender`;
 - annotation `policy.giantswarm.io/migrated-from: <namespace>/<name>`;
-- `policies` from `exceptions[].policyName`, one target per kind in `match`. A kind's group and
-  version are dropped, so `v1/Pod` becomes `Pod` and `apps/v1/Deployment` becomes `Deployment`.
+- `policies` from `exceptions[].policyName`, one target per kind in `match`. Each kind is kept as
+  written, group, version and wildcards included (`apps/v1/Deployment`, `v1/Pod`, `Deploy*`, `*`).
 
 kyverno-policy-operator recognises a bridge by that label and annotation together. It turns the
 bridge into a `policies.kyverno.io/v1` PolicyException labelled
@@ -90,7 +90,7 @@ A bridge is only written when it exempts the same requests as its source:
 | `migrated` | The bridge exists. |
 | `pending` | The bridge is about to be written (`bridge_missing`), or neither a ClusterPolicy nor a ValidatingPolicy, MutatingPolicy or ImageValidatingPolicy of that name exists (`policy_not_found`). |
 | `lossy` | `ruleNames` do not cover every rule of the ClusterPolicy (`rule_names`); a CEL exception would exempt the whole policy. |
-| `unsupported` | The source uses something a Giant Swarm PolicyException cannot express: `conditions`, `pod_security`, `subjects`, `roles`, `cluster_roles`, `selector`, `namespace_selector`, `annotations`, `operations`, `match_all` (several `match.all` filters, or `match.all` together with `match.any`), `name_and_names` (a filter with both `name` and `names`), `no_match`, `no_kinds`, `kind_format` (a wildcard in the kind, or a subresource such as `Pod/exec`), `no_policies`, `namespaced_policy` or `name_too_long`. |
+| `unsupported` | The source uses something a Giant Swarm PolicyException cannot express: `conditions`, `pod_security`, `subjects`, `roles`, `cluster_roles`, `selector`, `namespace_selector`, `annotations`, `operations`, `match_all` (several `match.all` filters, or `match.all` together with `match.any`), `name_and_names` (a filter with both `name` and `names`), `no_match`, `no_kinds`, `kind_format` (an empty kind, or a subresource such as `Pod/exec` or `apps/Deployment`), `no_policies`, `namespaced_policy` or `name_too_long`. |
 | `collision` | The bridge's name is taken (`name_taken`), either by another object, which is never changed, or by a same-name source in another namespace. While no bridge exists, the source whose `namespace/name` sorts lowest gets it. An existing bridge never changes owner. |
 
 When no ClusterPolicy of the source's policy name exists but a CEL policy of that name does, the
