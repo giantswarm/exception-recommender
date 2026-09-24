@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Keep the group, version and wildcards of a legacy PolicyException's kinds in the bridge's targets, instead of reducing them to the bare kind, which exempted the kind in every API group.
+- Keep qualified kinds such as `apps/v1/Deployment` in bridge targets instead of dropping the group and version, and bridge wildcard kinds instead of reporting them `unsupported` (`kind_format`).
 
 ## [0.3.0] - 2026-08-14
 
