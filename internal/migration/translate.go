@@ -91,7 +91,7 @@ func Translate(src *kyvernov2.PolicyException, lookup RuleLookup) (Translation, 
 			pending = true
 			continue
 		}
-		if !coversRules(exception.RuleNames, rules, mayMatchKind(spec.Targets, "CronJob")) {
+		if !coversRules(exception.RuleNames, rules, mayMatchCronJob(spec.Targets)) {
 			return Translation{State: StateLossy, Reason: ReasonRuleNames, Spec: spec}, nil
 		}
 	}
@@ -190,10 +190,11 @@ func coversRules(ruleNames, rules []string, cronJobTarget bool) bool {
 	return true
 }
 
-// mayMatchKind reports whether any target's kind selector can match kind, wildcards included.
-func mayMatchKind(targets []policyAPI.Target, kind string) bool {
+// mayMatchCronJob reports whether any target's kind selector can match batch/v1 CronJob, wildcards
+// in the group, version and kind included.
+func mayMatchCronJob(targets []policyAPI.Target) bool {
 	return slices.ContainsFunc(targets, func(t policyAPI.Target) bool {
-		_, _, plain, _ := kubeutils.ParseKindSelector(t.Kind)
-		return wildcard.Match(plain, kind)
+		group, version, kind, _ := kubeutils.ParseKindSelector(t.Kind)
+		return wildcard.Match(group, "batch") && wildcard.Match(version, "v1") && wildcard.Match(kind, "CronJob")
 	})
 }
