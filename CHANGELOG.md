@@ -7,9 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Migration bridges (`--enable-migration-bridges`, Helm `migrationBridges.enabled`, default `true`): write a Giant Swarm PolicyException `<name>-migrated` for each legacy `kyverno.io/v2` PolicyException that translates exactly; kept once translation stops being exact, removed once the source is gone. Adds migration metrics. security-bundle and the app collections keep ER itself off (`enabled: false`). The README lists the check to pass before upgrading to Kyverno 1.20.
+- Skip migration bridges, with an Info log naming the missing CRDs, when the API server lacks `kyverno.io/v2` PolicyException, `kyverno.io/v1` ClusterPolicy or `policy.giantswarm.io/v1alpha1` PolicyException, instead of failing to start; ER checks every minute and restarts once they are served.
+
 ### Changed
 
+- Start the PolicyReport and PolicyManifest controllers only with `--enable-automated-exceptions` (Helm `recommender.enableAutomatedExceptions`, default `false`).
 - Regenerate values.schema.json for the strict schema configuration.
+- Log at info level in JSON by default; use `--zap-log-level=debug` for debug output or `--zap-devel` for the previous console format.
 
 ## [0.3.0] - 2026-08-14
 

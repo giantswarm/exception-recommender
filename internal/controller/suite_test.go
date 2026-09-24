@@ -27,16 +27,24 @@ import (
 	. "github.com/onsi/gomega"
 	"go.uber.org/zap/zapcore"
 
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/giantswarm/exception-recommender/tests"
 
+	policiesv1 "github.com/kyverno/api/api/policies.kyverno.io/v1"
+	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	kyvernov2 "github.com/kyverno/kyverno/api/kyverno/v2"
 	wgpolicyk8s "github.com/kyverno/kyverno/api/policyreport/v1alpha2"
+
+	corev1 "k8s.io/api/core/v1"
 
 	policyAPI "github.com/giantswarm/policy-api/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
@@ -55,6 +63,7 @@ var targetWorkloads = []string{"Deployment"}
 var policyManifestCache = make(map[string]policyAPI.PolicyManifest)
 var destinationNamespace = "default"
 var maxJitterPercent = 10
+var bridgeNamespace = "policy-exceptions"
 
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -70,6 +79,7 @@ var _ = BeforeSuite(func() {
 	}
 
 	logger = zap.New(zap.UseFlagOptions(&opts))
+	ctrl.SetLogger(logger)
 
 	tests.GetEnvOrSkip("KUBEBUILDER_ASSETS")
 
@@ -95,6 +105,12 @@ var _ = BeforeSuite(func() {
 	// Add wgpolicyk8s scheme
 	err = wgpolicyk8s.Install(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
+
+	// Add Kyverno legacy, CEL policy and CRD schemes for the migration bridges
+	Expect(kyvernov1.Install(scheme.Scheme)).To(Succeed())
+	Expect(kyvernov2.Install(scheme.Scheme)).To(Succeed())
+	Expect(policiesv1.Install(scheme.Scheme)).To(Succeed())
+	Expect(apiextensionsv1.AddToScheme(scheme.Scheme)).To(Succeed())
 
 	//+kubebuilder:scaffold:scheme
 
@@ -124,6 +140,14 @@ var _ = BeforeSuite(func() {
 		PolicyManifestCache:  policyManifestCache,
 		MaxJitterPercent:     maxJitterPercent,
 	}).SetupWithManager(k8sManager)
+	Expect(err).NotTo(HaveOccurred())
+
+	Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: bridgeNamespace}})).To(Succeed())
+	err = (&LegacyExceptionReconciler{
+		Client:          k8sManager.GetClient(),
+		APIReader:       k8sManager.GetAPIReader(),
+		BridgeNamespace: bridgeNamespace,
+	}).SetupWithManager(k8sManager, make(chan event.GenericEvent))
 	Expect(err).NotTo(HaveOccurred())
 
 	go func() {

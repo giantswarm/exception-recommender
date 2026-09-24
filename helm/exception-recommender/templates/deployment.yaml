@@ -66,6 +66,9 @@ spec:
         {{- if .Values.recommender.excludeNamespaces }}
           - --exclude-namespaces={{ .Values.recommender.excludeNamespaces | join "," }}
         {{- end }}
+          - --enable-automated-exceptions={{ .Values.recommender.enableAutomatedExceptions }}
+          - --enable-migration-bridges={{ .Values.migrationBridges.enabled }}
+          - --bridge-namespace={{ .Values.migrationBridges.namespace }}
         ports:
         - containerPort: 8080
           name: metrics
