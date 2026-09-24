@@ -32,9 +32,11 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -132,17 +134,24 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	cacheOptions := cache.Options{}
+	cfg := ctrl.GetConfigOrDie()
+
+	// Check before building the manager: it fails to start when a cached kind is not served.
 	if enableMigrationBridges {
-		// Bridges live in one namespace; only cache Giant Swarm PolicyExceptions there.
-		cacheOptions.ByObject = map[client.Object]cache.ByObject{
-			&policyAPI.PolicyException{}: {Namespaces: map[string]cache.Config{bridgeNamespace: {}}},
+		missing, err := missingBridgeCRDs(cfg)
+		if err != nil {
+			setupLog.Error(err, "unable to check for the migration bridge CRDs")
+			os.Exit(1)
+		}
+		if len(missing) > 0 {
+			setupLog.Info("migration bridge CRDs not served, migration bridges disabled and existing bridges kept", "missing", missing)
+			enableMigrationBridges = false
 		}
 	}
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme:                 scheme,
-		Cache:                  cacheOptions,
+		Cache:                  cacheOptions(enableMigrationBridges, bridgeNamespace),
 		Metrics:                server.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
@@ -204,19 +213,32 @@ func main() {
 	}
 }
 
-// setupMigrationBridges registers the legacy PolicyException controller, its resync and its metrics.
-// Without the legacy Kyverno CRDs (Kyverno 1.20) there is nothing to bridge, and no bridge is deleted.
-func setupMigrationBridges(mgr ctrl.Manager, bridgeNamespace string) {
-	present, err := controller.LegacyCRDsPresent(mgr.GetRESTMapper())
+// missingBridgeCRDs returns the kinds the migration bridges need that the API server does not serve.
+func missingBridgeCRDs(cfg *rest.Config) ([]string, error) {
+	httpClient, err := rest.HTTPClientFor(cfg)
 	if err != nil {
-		setupLog.Error(err, "unable to check for legacy Kyverno CRDs")
-		os.Exit(1)
+		return nil, err
 	}
-	if !present {
-		setupLog.Info("legacy Kyverno CRDs not served, migration bridges disabled and existing bridges kept")
-		return
+	mapper, err := apiutil.NewDynamicRESTMapper(cfg, httpClient)
+	if err != nil {
+		return nil, err
 	}
+	return controller.MissingBridgeCRDs(mapper)
+}
 
+// cacheOptions scopes the Giant Swarm PolicyException cache to the bridge namespace when bridges run.
+func cacheOptions(enableMigrationBridges bool, bridgeNamespace string) cache.Options {
+	if !enableMigrationBridges {
+		return cache.Options{}
+	}
+	return cache.Options{ByObject: map[client.Object]cache.ByObject{
+		&policyAPI.PolicyException{}: {Namespaces: map[string]cache.Config{bridgeNamespace: {}}},
+	}}
+}
+
+// setupMigrationBridges registers the legacy PolicyException controller, its resync and its metrics.
+// main calls it only when every CRD the bridges need is served.
+func setupMigrationBridges(mgr ctrl.Manager, bridgeNamespace string) {
 	resync := make(chan event.GenericEvent)
 	if err := (&controller.LegacyExceptionReconciler{
 		Client:          mgr.GetClient(),

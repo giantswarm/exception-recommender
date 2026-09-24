@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Migration bridges (`--enable-migration-bridges`, Helm `migrationBridges.enabled`, default `true`): write a Giant Swarm PolicyException `<name>-migrated` for each legacy `kyverno.io/v2` PolicyException that translates exactly; kept once translation stops being exact, removed once the source is gone. Adds migration metrics. security-bundle and the app collections keep ER itself off (`enabled: false`).
+- Skip migration bridges, with an Info log naming the missing CRDs, when the API server lacks `kyverno.io/v2` PolicyException, `kyverno.io/v1` ClusterPolicy or `policy.giantswarm.io/v1alpha1` PolicyException, instead of failing to start.
 
 ### Changed
 

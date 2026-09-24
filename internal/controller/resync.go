@@ -62,20 +62,24 @@ func (r *Resyncer) resync(ctx context.Context) {
 	r.Log.V(1).Info("resync queued legacy PolicyExceptions", "count", queued)
 }
 
-// LegacyCRDsPresent reports whether the API server serves kyverno.io/v2 PolicyException and
-// kyverno.io/v1 ClusterPolicy. Kyverno 1.20 removes both.
-func LegacyCRDsPresent(mapper meta.RESTMapper) (bool, error) {
+// MissingBridgeCRDs returns the kinds the migration bridges need that the API server does not
+// serve: kyverno.io/v2 PolicyException and kyverno.io/v1 ClusterPolicy, which Kyverno 1.20
+// removes, and policy.giantswarm.io/v1alpha1 PolicyException, which the bridges are.
+func MissingBridgeCRDs(mapper meta.RESTMapper) ([]string, error) {
+	var missing []string
 	for _, gvk := range []schema.GroupVersionKind{
-		schema.GroupVersionKind{Group: "kyverno.io", Version: "v2", Kind: "PolicyException"},
-		schema.GroupVersionKind{Group: "kyverno.io", Version: "v1", Kind: "ClusterPolicy"},
+		{Group: "kyverno.io", Version: "v2", Kind: "PolicyException"},
+		{Group: "kyverno.io", Version: "v1", Kind: "ClusterPolicy"},
+		{Group: "policy.giantswarm.io", Version: "v1alpha1", Kind: "PolicyException"},
 	} {
 		_, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 		if meta.IsNoMatchError(err) {
-			return false, nil
+			missing = append(missing, gvk.String())
+			continue
 		}
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 	}
-	return true, nil
+	return missing, nil
 }
