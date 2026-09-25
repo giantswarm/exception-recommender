@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Regenerate values.schema.json for the strict schema configuration.
 
+### Fixed
+
+- Delete the `AutomatedException` by resource UID instead of `<resource-name>-<kind>`, which never matched and left exceptions behind after a report stopped failing.
+
 ## [0.3.0] - 2026-08-14
 
 ### Added
