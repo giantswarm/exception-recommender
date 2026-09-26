@@ -3,10 +3,12 @@ package controller
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	policyAPI "github.com/giantswarm/policy-api/api/v1alpha1"
 	policiesv1 "github.com/kyverno/api/api/policies.kyverno.io/v1"
+	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	kyvernov2 "github.com/kyverno/kyverno/api/kyverno/v2"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -16,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/giantswarm/exception-recommender/internal/migration"
 )
@@ -371,5 +374,172 @@ func TestReconcileKeepsBridgeWhenPolicyGone(t *testing.T) {
 	bridge, ok := getBridge(t, c)
 	if !ok || bridge.Spec.Policies[0] != stalePolicy {
 		t.Fatalf("bridge removed or rewritten after its policy went away: %+v", bridge)
+	}
+}
+
+func TestReconcileNeverTakesOverObjectCreatedAfterEvaluate(t *testing.T) {
+	// Evaluate saw no bridge; by the time the bridge is written, someone else created that name.
+	s := unitScheme(t)
+	bridgeGets := 0
+	hideFirstBridgeGet := interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+		if _, ok := obj.(*policyAPI.PolicyException); ok {
+			bridgeGets++
+			if bridgeGets == 1 {
+				return apierrors.NewNotFound(policyAPI.GroupVersion.WithResource("policyexceptions").GroupResource(), key.Name)
+			}
+		}
+		return c.Get(ctx, key, obj, opts...)
+	}}
+	c := fake.NewClientBuilder().WithScheme(s).WithObjects(nonrootPolicy(), legacySource("*"),
+		existingBridge(nil, "")).WithInterceptorFuncs(hideFirstBridgeGet).Build()
+	before := testutil.ToFloat64(TranslationErrors.WithLabelValues(ReasonApplyFailed))
+
+	if err := reconcileSource(t, newReconciler(c, c)); err != nil {
+		t.Fatalf("got %v, want a name collision to be no error", err)
+	}
+	bridge, ok := getBridge(t, c)
+	if !ok || bridge.Spec.Policies[0] != stalePolicy || bridge.Labels[migration.ManagedByLabel] != "" {
+		t.Fatalf("object created by someone else was taken over: %+v", bridge)
+	}
+	if got := testutil.ToFloat64(TranslationErrors.WithLabelValues(ReasonApplyFailed)) - before; got != 0 {
+		t.Fatalf("apply_failed grew by %v, want 0", got)
+	}
+}
+
+func TestReconcileWriteFailure(t *testing.T) {
+	s := unitScheme(t)
+	boom := errors.New("boom")
+	c := fake.NewClientBuilder().WithScheme(s).WithObjects(nonrootPolicy(), legacySource("*")).
+		WithInterceptorFuncs(interceptor.Funcs{Create: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+			return boom
+		}}).Build()
+	before := testutil.ToFloat64(TranslationErrors.WithLabelValues(ReasonApplyFailed))
+
+	if err := reconcileSource(t, newReconciler(c, c)); !errors.Is(err, boom) {
+		t.Fatalf("got %v, want %v", err, boom)
+	}
+	if got := testutil.ToFloat64(TranslationErrors.WithLabelValues(ReasonApplyFailed)) - before; got != 1 {
+		t.Fatalf("apply_failed grew by %v, want 1", got)
+	}
+}
+
+func TestReconcileSourceGetFails(t *testing.T) {
+	s := unitScheme(t)
+	boom := errors.New("boom")
+	c := fake.NewClientBuilder().WithScheme(s).WithObjects(existingBridge(ownLabels, "giantswarm/cilium"), legacyCRD()).
+		WithInterceptorFuncs(interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if _, ok := obj.(*kyvernov2.PolicyException); ok {
+				return boom
+			}
+			return c.Get(ctx, key, obj, opts...)
+		}}).Build()
+
+	// The API reader has no source either: only the failed cache read may stop the delete.
+	if err := reconcileSource(t, newReconciler(c, fake.NewClientBuilder().WithScheme(s).WithObjects(legacyCRD()).Build())); !errors.Is(err, boom) {
+		t.Fatalf("got %v, want %v", err, boom)
+	}
+	if _, ok := getBridge(t, c); !ok {
+		t.Fatal("bridge deleted after the source could not be read")
+	}
+}
+
+func TestReconcileEvaluateFails(t *testing.T) {
+	s := unitScheme(t)
+	boom := errors.New("boom")
+	c := fake.NewClientBuilder().WithScheme(s).WithObjects(nonrootPolicy(), legacySource("run-as-non-root")).
+		WithInterceptorFuncs(interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if _, ok := obj.(*kyvernov1.ClusterPolicy); ok {
+				return boom
+			}
+			return c.Get(ctx, key, obj, opts...)
+		}}).Build()
+	before := testutil.ToFloat64(TranslationErrors.WithLabelValues(ReasonLookupFailed))
+
+	if err := reconcileSource(t, newReconciler(c, c)); !errors.Is(err, boom) {
+		t.Fatalf("got %v, want %v", err, boom)
+	}
+	if _, ok := getBridge(t, c); ok {
+		t.Fatal("bridge written although the policy lookup failed")
+	}
+	if got := testutil.ToFloat64(TranslationErrors.WithLabelValues(ReasonLookupFailed)) - before; got != 1 {
+		t.Fatalf("lookup_failed grew by %v, want 1", got)
+	}
+}
+
+func TestReconcileBridgeGetFailsWhenSourceGone(t *testing.T) {
+	s := unitScheme(t)
+	boom := errors.New("boom")
+	c := fake.NewClientBuilder().WithScheme(s).WithObjects(existingBridge(ownLabels, "giantswarm/cilium"), legacyCRD()).
+		WithInterceptorFuncs(interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if _, ok := obj.(*policyAPI.PolicyException); ok {
+				return boom
+			}
+			return c.Get(ctx, key, obj, opts...)
+		}}).Build()
+
+	if err := reconcileSource(t, newReconciler(c, c)); !errors.Is(err, boom) {
+		t.Fatalf("got %v, want %v", err, boom)
+	}
+}
+
+func TestReconcileDeleteOutcomes(t *testing.T) {
+	s := unitScheme(t)
+	boom := errors.New("boom")
+	cases := map[string]struct {
+		deleteErr       error
+		wantErr         error
+		wantRemoved     float64
+		wantDeleteFails float64
+	}{
+		"already deleted by someone else": {
+			deleteErr: apierrors.NewNotFound(policyAPI.GroupVersion.WithResource("policyexceptions").GroupResource(), bridgeKey.Name),
+		},
+		"delete fails": {deleteErr: boom, wantErr: boom, wantDeleteFails: 1},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			c := fake.NewClientBuilder().WithScheme(s).WithObjects(existingBridge(ownLabels, "giantswarm/cilium"), legacyCRD()).
+				WithInterceptorFuncs(interceptor.Funcs{Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+					return tc.deleteErr
+				}}).Build()
+			removed := testutil.ToFloat64(BridgesRemoved)
+			deleteFails := testutil.ToFloat64(TranslationErrors.WithLabelValues(ReasonDeleteFailed))
+
+			if err := reconcileSource(t, newReconciler(c, c)); !errors.Is(err, tc.wantErr) {
+				t.Fatalf("got %v, want %v", err, tc.wantErr)
+			}
+			if got := testutil.ToFloat64(BridgesRemoved) - removed; got != tc.wantRemoved {
+				t.Fatalf("bridges_removed_total grew by %v, want %v", got, tc.wantRemoved)
+			}
+			if got := testutil.ToFloat64(TranslationErrors.WithLabelValues(ReasonDeleteFailed)) - deleteFails; got != tc.wantDeleteFails {
+				t.Fatalf("delete_failed grew by %v, want %v", got, tc.wantDeleteFails)
+			}
+		})
+	}
+}
+
+func TestBridgeToSource(t *testing.T) {
+	cases := map[string]struct {
+		labels      map[string]string
+		annotations map[string]string
+		want        []reconcile.Request
+	}{
+		"own bridge": {labels: ownLabels, annotations: map[string]string{migration.AnnotationMigratedFrom: "giantswarm/cilium"},
+			want: []reconcile.Request{{NamespacedName: sourceKey}}},
+		"no managed-by label": {annotations: map[string]string{migration.AnnotationMigratedFrom: "giantswarm/cilium"}},
+		"managed by kyverno-policy-operator": {labels: map[string]string{migration.ManagedByLabel: migration.KPOComponentName},
+			annotations: map[string]string{migration.AnnotationMigratedFrom: "giantswarm/cilium"}},
+		"no migrated-from annotation":        {labels: ownLabels},
+		"malformed migrated-from annotation": {labels: ownLabels, annotations: map[string]string{migration.AnnotationMigratedFrom: "cilium"}},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			obj := &policyAPI.PolicyException{ObjectMeta: metav1.ObjectMeta{
+				Name: bridgeKey.Name, Namespace: bridgeKey.Namespace, Labels: tc.labels, Annotations: tc.annotations,
+			}}
+			if got := bridgeToSource(context.Background(), obj); !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("got %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

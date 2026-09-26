@@ -50,3 +50,55 @@ func TestResyncerKeepsTimestampWhenListFails(t *testing.T) {
 		t.Fatalf("resync after a failed list: %d events, timestamp %v", len(events), testutil.ToFloat64(LastResync))
 	}
 }
+
+func TestResyncerStartResyncsOnEveryTick(t *testing.T) {
+	s := unitScheme(t)
+	api := fake.NewClientBuilder().WithScheme(s).WithObjects(legacySource("*")).Build()
+	events := make(chan event.GenericEvent)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error)
+	go func() {
+		done <- (&Resyncer{APIReader: api, Events: events, Interval: time.Millisecond, Log: logr.Discard()}).Start(ctx)
+	}()
+
+	// One event at start, then one per tick.
+	for i := 0; i < 3; i++ {
+		select {
+		case <-events:
+		case <-time.After(5 * time.Second):
+			t.Fatalf("resync %d not queued", i+1)
+		}
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("got %v, want nil", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Start did not return after the context was cancelled")
+	}
+}
+
+func TestResyncerStopsWhileBlockedOnQueue(t *testing.T) {
+	// The production channel is unbuffered: a controller that stops receiving must not hang the resync.
+	s := unitScheme(t)
+	api := fake.NewClientBuilder().WithScheme(s).WithObjects(legacySource("*")).Build()
+	ctx, cancel := context.WithCancel(context.Background())
+	LastResync.Set(0)
+	done := make(chan struct{})
+	go func() {
+		(&Resyncer{APIReader: api, Events: make(chan event.GenericEvent), Interval: time.Hour, Log: logr.Discard()}).resync(ctx)
+		close(done)
+	}()
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("resync blocked after the context was cancelled")
+	}
+	if testutil.ToFloat64(LastResync) != 0 {
+		t.Fatal("last resync timestamp set for an interrupted resync")
+	}
+}
