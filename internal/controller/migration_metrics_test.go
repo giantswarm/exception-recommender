@@ -1,41 +1,30 @@
 package controller
 
 import (
-	"context"
-	"errors"
 	"strings"
 	"testing"
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/giantswarm/exception-recommender/internal/migration"
+	"github.com/giantswarm/exception-recommender/internal/testsupport"
 )
 
 func TestMigrationCollector(t *testing.T) {
 	// arrange
-	s := unitScheme(t)
-	kpo := named(legacySource("*"), "generated")
-	kpo.Labels = map[string]string{migration.ManagedByLabel: migration.KPOComponentName}
-	unsupported := named(legacySource("*"), "by-selector")
-	unsupported.Spec.Match.Any[0].Selector = &metav1.LabelSelector{}
-	// A source that turned lossy after it was bridged: the bridge is kept.
-	driftedBridge := existingBridge(ownLabels, "giantswarm/drifted")
-	driftedBridge.Name = "drifted-migrated"
-	c := fake.NewClientBuilder().WithScheme(s).WithObjects(
+	migrated := exactSource()                     // cilium
+	drifted := withName(lossySource(), "drifted") // turned lossy after it was bridged: the bridge is kept
+	c := newClient(t,
 		nonrootPolicy(),
-		legacySource("*"), existingBridge(ownLabels, "giantswarm/cilium"),
-		named(legacySource("*"), "new"),
-		named(legacySource("run-as-non-root"), "partial"),
-		unsupported,
-		named(legacySource("run-as-non-root"), "drifted"), driftedBridge,
-		kpo,
-	).Build()
+		migrated, bridgeOf(migrated),
+		withName(exactSource(), "new"),
+		withName(lossySource(), "partial"),
+		withName(unsupportedSource(), "by-selector"),
+		drifted, bridgeOf(drifted),
+		withName(kpoSource(), "generated"),
+	)
 
 	collector := &MigrationCollector{Reader: c, BridgeNamespace: testBridgeNamespace, Log: logr.Discard()}
 	expected := `
@@ -65,12 +54,7 @@ exception_recommender_policyexception_migration_info{migrated_name="drifted-migr
 // No metrics at all rather than stale ones: alerts must use absent().
 func TestMigrationCollectorListFails(t *testing.T) {
 	// arrange
-	s := unitScheme(t)
-	c := fake.NewClientBuilder().WithScheme(s).WithObjects(legacySource("*")).WithInterceptorFuncs(interceptor.Funcs{
-		List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
-			return errors.New("boom")
-		},
-	}).Build()
+	c := newClientWith(t, testsupport.FailList(testsupport.ErrBoom), exactSource())
 
 	collector := &MigrationCollector{Reader: c, BridgeNamespace: testBridgeNamespace, Log: logr.Discard()}
 
@@ -83,17 +67,9 @@ func TestMigrationCollectorListFails(t *testing.T) {
 
 func TestMigrationCollectorSkipsSourceThatFailsToEvaluate(t *testing.T) {
 	// arrange
-	s := unitScheme(t)
-	c := fake.NewClientBuilder().WithScheme(s).WithObjects(
-		nonrootPolicy(), legacySource("*"), existingBridge(ownLabels, "giantswarm/cilium"), named(legacySource("*"), "broken"),
-	).WithInterceptorFuncs(interceptor.Funcs{
-		Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-			if key.Name == "broken-migrated" {
-				return errors.New("boom")
-			}
-			return c.Get(ctx, key, obj, opts...)
-		},
-	}).Build()
+	broken := withName(exactSource(), "broken")
+	c := newClientWith(t, testsupport.FailGetNamed(migration.BridgeName(broken), testsupport.ErrBoom),
+		nonrootPolicy(), exactSource(), bridgeOf(exactSource()), broken)
 
 	collector := &MigrationCollector{Reader: c, BridgeNamespace: testBridgeNamespace, Log: logr.Discard()}
 	expected := `

@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -10,20 +9,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
-	"github.com/giantswarm/exception-recommender/internal/migration"
+	"github.com/giantswarm/exception-recommender/internal/testsupport"
 )
 
 func TestResyncerQueuesSourcesAndStampsTime(t *testing.T) {
 	// arrange
-	s := unitScheme(t)
-	kpo := named(legacySource("*"), "generated")
-	kpo.Labels = map[string]string{migration.ManagedByLabel: migration.KPOComponentName}
-	api := fake.NewClientBuilder().WithScheme(s).WithObjects(legacySource("*"), kpo).Build()
+	api := newClient(t, exactSource(), withName(kpoSource(), "generated"))
 	events := make(chan event.GenericEvent, 10)
 	LastResync.Set(0)
 	r := &Resyncer{APIReader: api, Events: events, Interval: time.Hour, Log: logr.Discard()}
@@ -38,12 +31,7 @@ func TestResyncerQueuesSourcesAndStampsTime(t *testing.T) {
 
 func TestResyncerKeepsTimestampWhenListFails(t *testing.T) {
 	// arrange
-	s := unitScheme(t)
-	api := fake.NewClientBuilder().WithScheme(s).WithInterceptorFuncs(interceptor.Funcs{
-		List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
-			return errors.New("the server could not find the requested resource")
-		},
-	}).Build()
+	api := newClientWith(t, testsupport.FailList(testsupport.ErrBoom))
 	events := make(chan event.GenericEvent, 10)
 	LastResync.Set(0)
 	r := &Resyncer{APIReader: api, Events: events, Interval: time.Hour, Log: logr.Discard()}
@@ -58,8 +46,7 @@ func TestResyncerKeepsTimestampWhenListFails(t *testing.T) {
 
 func TestResyncerStartResyncsOnEveryTick(t *testing.T) {
 	// arrange
-	s := unitScheme(t)
-	api := fake.NewClientBuilder().WithScheme(s).WithObjects(legacySource("*")).Build()
+	api := newClient(t, exactSource())
 	events := make(chan event.GenericEvent)
 	ctx, cancel := context.WithCancel(context.Background())
 	r := &Resyncer{APIReader: api, Events: events, Interval: time.Millisecond, Log: logr.Discard()}
@@ -88,8 +75,7 @@ func TestResyncerStartResyncsOnEveryTick(t *testing.T) {
 // The production channel is unbuffered: a controller that stops receiving must not hang the resync.
 func TestResyncerStopsWhileBlockedOnQueue(t *testing.T) {
 	// arrange
-	s := unitScheme(t)
-	api := fake.NewClientBuilder().WithScheme(s).WithObjects(legacySource("*")).Build()
+	api := newClient(t, exactSource())
 	ctx, cancel := context.WithCancel(context.Background())
 	LastResync.Set(0)
 	r := &Resyncer{APIReader: api, Events: make(chan event.GenericEvent), Interval: time.Hour, Log: logr.Discard()}

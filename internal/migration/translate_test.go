@@ -1,7 +1,6 @@
 package migration
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
@@ -12,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/giantswarm/exception-recommender/internal/testsupport"
 )
 
 // Names shared by the tests.
@@ -269,14 +270,13 @@ func TestTranslateKindFormats(t *testing.T) {
 
 func TestTranslateLookupError(t *testing.T) {
 	// arrange
-	boom := errors.New("boom")
-	failingLookup := func(string) ([]string, bool, error) { return nil, false, boom }
+	failingLookup := func(string) ([]string, bool, error) { return nil, false, testsupport.ErrBoom }
 
 	// act
 	_, err := Translate(source(nil), failingLookup)
 
 	// assert
-	assert.ErrorIs(t, err, boom)
+	assert.ErrorIs(t, err, testsupport.ErrBoom)
 }
 
 // The gspolex CRD requires names and namespaces; null would be rejected.

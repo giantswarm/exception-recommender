@@ -18,6 +18,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+
+	"github.com/giantswarm/exception-recommender/internal/testsupport"
 )
 
 const bridgeNamespace = "policy-exceptions"
@@ -31,6 +33,18 @@ func testScheme(t *testing.T) *runtime.Scheme {
 	return s
 }
 
+// newClient returns a fake client holding objects.
+func newClient(t *testing.T, objects ...client.Object) client.WithWatch {
+	t.Helper()
+	return fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(objects...).Build()
+}
+
+// newClientWith returns a fake client holding objects whose calls go through funcs first.
+func newClientWith(t *testing.T, funcs interceptor.Funcs, objects ...client.Object) client.WithWatch {
+	t.Helper()
+	return fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(objects...).WithInterceptorFuncs(funcs).Build()
+}
+
 func clusterPolicy(name string, rules ...string) *kyvernov1.ClusterPolicy {
 	p := &kyvernov1.ClusterPolicy{ObjectMeta: metav1.ObjectMeta{Name: name}}
 	for _, r := range rules {
@@ -39,14 +53,36 @@ func clusterPolicy(name string, rules ...string) *kyvernov1.ClusterPolicy {
 	return p
 }
 
-func gspolex(name string, labels, annotations map[string]string) *policyAPI.PolicyException {
-	return &policyAPI.PolicyException{ObjectMeta: metav1.ObjectMeta{
-		Name: name, Namespace: bridgeNamespace, Labels: labels, Annotations: annotations,
-	}}
+// sourcePolicies are the ClusterPolicies source(nil) exempts, with exactly the rules it names, so
+// that source(nil) translates exactly.
+func sourcePolicies() []client.Object {
+	return []client.Object{
+		clusterPolicy(nonrootPolicy, nonrootRule, nonrootAutogenRule),
+		clusterPolicy(hostPathPolicy, hostPathRule, hostPathAutogenRule),
+	}
 }
 
-func validatingPolicy(name string) *policiesv1.ValidatingPolicy {
-	return &policiesv1.ValidatingPolicy{ObjectMeta: metav1.ObjectMeta{Name: name}}
+// sourceCELPolicies replace sourcePolicies with ValidatingPolicies of the same names.
+func sourceCELPolicies() []client.Object {
+	return []client.Object{
+		&policiesv1.ValidatingPolicy{ObjectMeta: metav1.ObjectMeta{Name: nonrootPolicy}},
+		&policiesv1.ValidatingPolicy{ObjectMeta: metav1.ObjectMeta{Name: hostPathPolicy}},
+	}
+}
+
+// with returns objects followed by more, without changing objects.
+func with(objects []client.Object, more ...client.Object) []client.Object {
+	return append(append([]client.Object{}, objects...), more...)
+}
+
+// lossySource leaves out a rule of sourcePolicies; a bridge would exempt more than it does.
+func lossySource() *kyvernov2.PolicyException {
+	return source(func(p *kyvernov2.PolicyException) { p.Spec.Exceptions[0].RuleNames = []string{nonrootRule} })
+}
+
+// unsupportedSource selects by label, which a bridge cannot express.
+func unsupportedSource() *kyvernov2.PolicyException {
+	return source(func(p *kyvernov2.PolicyException) { p.Spec.Match.Any[0].Selector = &metav1.LabelSelector{} })
 }
 
 func inNamespace(src *kyvernov2.PolicyException, namespace string) *kyvernov2.PolicyException {
@@ -54,20 +90,25 @@ func inNamespace(src *kyvernov2.PolicyException, namespace string) *kyvernov2.Po
 	return src
 }
 
-func ownBridge(src *kyvernov2.PolicyException) *policyAPI.PolicyException {
-	return gspolex(BridgeName(src), map[string]string{ManagedByLabel: ComponentName},
-		map[string]string{AnnotationMigratedFrom: SourceKey(src)})
+// bridgeOf is the bridge exception-recommender wrote for src.
+func bridgeOf(src *kyvernov2.PolicyException) *policyAPI.PolicyException {
+	bridge := handWrittenBridgeFor(src)
+	bridge.Labels = map[string]string{ManagedByLabel: ComponentName}
+	return bridge
+}
+
+// handWrittenBridgeFor looks like src's bridge but lacks the managed-by label: someone else's object.
+func handWrittenBridgeFor(src *kyvernov2.PolicyException) *policyAPI.PolicyException {
+	return &policyAPI.PolicyException{ObjectMeta: metav1.ObjectMeta{
+		Name:        BridgeName(src),
+		Namespace:   bridgeNamespace,
+		Annotations: map[string]string{AnnotationMigratedFrom: SourceKey(src)},
+	}}
 }
 
 func TestEvaluate(t *testing.T) {
-	policies := []client.Object{
-		clusterPolicy(nonrootPolicy, nonrootRule, nonrootAutogenRule),
-		clusterPolicy(hostPathPolicy, hostPathRule, hostPathAutogenRule),
-	}
-	celOnly := []client.Object{validatingPolicy(nonrootPolicy), validatingPolicy(hostPathPolicy)}
-	lossy := source(func(p *kyvernov2.PolicyException) { p.Spec.Exceptions[0].RuleNames = []string{nonrootRule} })
-	unsupported := source(func(p *kyvernov2.PolicyException) { p.Spec.Match.Any[0].Selector = &metav1.LabelSelector{} })
-	// "default/cilium" sorts before "giantswarm/cilium", the namespace of source(nil).
+	exact := source(nil) // giantswarm/cilium
+	// "default/cilium" sorts before "giantswarm/cilium" and shares its bridge name.
 	lower := func() *kyvernov2.PolicyException { return inNamespace(source(nil), "default") }
 	cases := []struct {
 		name       string
@@ -77,45 +118,44 @@ func TestEvaluate(t *testing.T) {
 		wantReason string
 		wantWrite  bool
 	}{
-		{name: "exact without bridge", src: source(nil), objects: policies,
+		{name: "exact without bridge", src: exact, objects: sourcePolicies(),
 			wantState: StatePending, wantReason: ReasonBridgeMissing, wantWrite: true},
-		{name: "exact with own bridge", src: source(nil), objects: append(policies, ownBridge(source(nil))),
+		{name: "exact with own bridge", src: exact, objects: with(sourcePolicies(), bridgeOf(exact)),
 			wantState: StateMigrated, wantWrite: true},
-		{name: "name taken by a hand-written gspolex", src: source(nil),
-			objects:   append(policies, gspolex("cilium-migrated", nil, nil)),
+		{name: "name taken by a hand-written gspolex", src: exact, objects: with(sourcePolicies(), handWrittenBridgeFor(exact)),
 			wantState: StateCollision, wantReason: ReasonNameTaken},
-		{name: "name taken by the bridge of a source in another namespace", src: source(nil),
-			objects: append(policies, gspolex("cilium-migrated", map[string]string{ManagedByLabel: ComponentName},
-				map[string]string{AnnotationMigratedFrom: "other/cilium"})),
+		{name: "name taken by the bridge of a source in another namespace", src: exact,
+			objects:   with(sourcePolicies(), bridgeOf(inNamespace(source(nil), "other"))),
 			wantState: StateCollision, wantReason: ReasonNameTaken},
-		{name: "ClusterPolicy gone, ValidatingPolicy present, no bridge", src: source(nil), objects: celOnly,
+		{name: "ClusterPolicy gone, ValidatingPolicy present, no bridge", src: exact, objects: sourceCELPolicies(),
 			wantState: StatePending, wantReason: ReasonBridgeMissing, wantWrite: true},
-		{name: "ClusterPolicy gone, ValidatingPolicy present, own bridge", src: source(nil),
-			objects: append(celOnly, ownBridge(source(nil))), wantState: StateMigrated, wantWrite: true},
-		{name: "neither policy exists keeps the existing bridge", src: source(nil), objects: []client.Object{ownBridge(source(nil))},
+		{name: "ClusterPolicy gone, ValidatingPolicy present, own bridge", src: exact,
+			objects: with(sourceCELPolicies(), bridgeOf(exact)), wantState: StateMigrated, wantWrite: true},
+		{name: "neither policy exists keeps the existing bridge", src: exact, objects: with(nil, bridgeOf(exact)),
 			wantState: StateMigrated},
-		{name: "neither policy exists and no bridge", src: source(nil),
+		{name: "neither policy exists and no bridge", src: exact,
 			wantState: StatePending, wantReason: ReasonPolicyNotFound},
-		{name: "lossy with own bridge keeps it", src: lossy, objects: append(policies, ownBridge(lossy)),
+		{name: "lossy with own bridge keeps it", src: lossySource(), objects: with(sourcePolicies(), bridgeOf(lossySource())),
 			wantState: StateLossy, wantReason: ReasonRuleNames},
-		{name: "unsupported with own bridge keeps it", src: unsupported, objects: append(policies, ownBridge(unsupported)),
+		{name: "unsupported with own bridge keeps it", src: unsupportedSource(),
+			objects:   with(sourcePolicies(), bridgeOf(unsupportedSource())),
 			wantState: StateUnsupported, wantReason: ReasonSelector},
-		{name: "lower-sorting exact source claims the name while no bridge exists", src: source(nil),
-			objects: append(policies, lower()), wantState: StateCollision, wantReason: ReasonNameTaken},
-		{name: "lowest-sorting source writes the bridge", src: lower(), objects: append(policies, source(nil)),
+		{name: "lower-sorting exact source claims the name while no bridge exists", src: exact,
+			objects: with(sourcePolicies(), lower()), wantState: StateCollision, wantReason: ReasonNameTaken},
+		{name: "lowest-sorting source writes the bridge", src: lower(), objects: with(sourcePolicies(), exact),
 			wantState: StatePending, wantReason: ReasonBridgeMissing, wantWrite: true},
-		{name: "higher-sorting source keeps the bridge it already owns", src: source(nil),
-			objects: append(policies, lower(), ownBridge(source(nil))), wantState: StateMigrated, wantWrite: true},
+		{name: "higher-sorting source keeps the bridge it already owns", src: exact,
+			objects: with(sourcePolicies(), lower(), bridgeOf(exact)), wantState: StateMigrated, wantWrite: true},
 		{name: "lower-sorting source does not take over an existing bridge", src: lower(),
-			objects: append(policies, source(nil), ownBridge(source(nil))), wantState: StateCollision, wantReason: ReasonNameTaken},
-		{name: "lower-sorting source that is not exact does not claim the name", src: source(nil),
-			objects:   append(policies, inNamespace(lossy.DeepCopy(), "default")),
+			objects: with(sourcePolicies(), exact, bridgeOf(exact)), wantState: StateCollision, wantReason: ReasonNameTaken},
+		{name: "lower-sorting source that is not exact does not claim the name", src: exact,
+			objects:   with(sourcePolicies(), inNamespace(lossySource(), "default")),
 			wantState: StatePending, wantReason: ReasonBridgeMissing, wantWrite: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			// arrange
-			c := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(tc.objects...).Build()
+			c := newClient(t, tc.objects...)
 
 			// act
 			got, err := Evaluate(context.Background(), c, bridgeNamespace, tc.src)
@@ -133,7 +173,7 @@ func TestPolicyRulesIncludesAutogen(t *testing.T) {
 	// arrange
 	p := clusterPolicy(hostPathPolicy, hostPathRule)
 	p.Status.Autogen.Rules = []kyvernov1.Rule{{Name: hostPathAutogenRule}}
-	c := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(p).Build()
+	c := newClient(t, p)
 
 	// act
 	got, found, err := PolicyRules(context.Background(), c)(hostPathPolicy)
@@ -146,7 +186,8 @@ func TestPolicyRulesIncludesAutogen(t *testing.T) {
 
 func TestPolicyRulesCELPolicies(t *testing.T) {
 	meta := metav1.ObjectMeta{Name: hostPathPolicy}
-	noKind := interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	// Only ClusterPolicies are served, as on a Kyverno without CEL policies.
+	celKindsNotServed := interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 		if _, ok := obj.(*kyvernov1.ClusterPolicy); ok {
 			return c.Get(ctx, key, obj, opts...)
 		}
@@ -161,12 +202,12 @@ func TestPolicyRulesCELPolicies(t *testing.T) {
 		"MutatingPolicy":              {objects: []client.Object{&policiesv1.MutatingPolicy{ObjectMeta: meta}}, wantFound: true},
 		"ImageValidatingPolicy":       {objects: []client.Object{&policiesv1.ImageValidatingPolicy{ObjectMeta: meta}}, wantFound: true},
 		"no policy":                   {},
-		"CEL policy kinds not served": {funcs: noKind},
+		"CEL policy kinds not served": {funcs: celKindsNotServed},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			// arrange
-			c := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(tc.objects...).WithInterceptorFuncs(tc.funcs).Build()
+			c := newClientWith(t, tc.funcs, tc.objects...)
 
 			// act
 			got, found, err := PolicyRules(context.Background(), c)(hostPathPolicy)
@@ -185,11 +226,7 @@ func TestEvaluateSkipsKPOManagedLowerSource(t *testing.T) {
 	// arrange
 	kpo := inNamespace(source(nil), "default")
 	kpo.Labels = map[string]string{ManagedByLabel: KPOComponentName}
-	c := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(
-		clusterPolicy(nonrootPolicy, nonrootRule, nonrootAutogenRule),
-		clusterPolicy(hostPathPolicy, hostPathRule, hostPathAutogenRule),
-		kpo,
-	).Build()
+	c := newClient(t, with(sourcePolicies(), kpo)...)
 
 	// act
 	got, err := Evaluate(context.Background(), c, bridgeNamespace, source(nil))
@@ -204,13 +241,7 @@ func TestEvaluateSkipsKPOManagedLowerSource(t *testing.T) {
 func TestEvaluateNameTooLongSkipsBridgeLookup(t *testing.T) {
 	// arrange
 	src := source(func(p *kyvernov2.PolicyException) { p.Name = strings.Repeat("a", MaxNameLength) })
-	failBridgeGet := interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-		if _, ok := obj.(*policyAPI.PolicyException); ok {
-			return errors.New("bridge must not be looked up")
-		}
-		return c.Get(ctx, key, obj, opts...)
-	}}
-	c := fake.NewClientBuilder().WithScheme(testScheme(t)).WithInterceptorFuncs(failBridgeGet).Build()
+	c := newClientWith(t, testsupport.FailGet[*policyAPI.PolicyException](errors.New("bridge must not be looked up")))
 
 	// act
 	got, err := Evaluate(context.Background(), c, bridgeNamespace, src)
@@ -224,80 +255,40 @@ func TestEvaluateNameTooLongSkipsBridgeLookup(t *testing.T) {
 }
 
 func TestEvaluateErrors(t *testing.T) {
-	boom := errors.New("boom")
-	policies := []client.Object{
-		clusterPolicy(nonrootPolicy, nonrootRule, nonrootAutogenRule),
-		clusterPolicy(hostPathPolicy, hostPathRule, hostPathAutogenRule),
+	cases := map[string]interceptor.Funcs{
+		"policy lookup fails":                      testsupport.FailGet[*kyvernov1.ClusterPolicy](testsupport.ErrBoom),
+		"bridge lookup fails":                      testsupport.FailGet[*policyAPI.PolicyException](testsupport.ErrBoom),
+		"listing sources for the name claim fails": testsupport.FailList(testsupport.ErrBoom),
 	}
-	failGet := func(match func(client.Object) bool) interceptor.Funcs {
-		return interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-			if match(obj) {
-				return boom
-			}
-			return c.Get(ctx, key, obj, opts...)
-		}}
-	}
-	cases := map[string]struct {
-		objects []client.Object
-		funcs   interceptor.Funcs
-	}{
-		"policy lookup fails": {objects: policies, funcs: failGet(func(obj client.Object) bool {
-			_, ok := obj.(*kyvernov1.ClusterPolicy)
-			return ok
-		})},
-		"bridge lookup fails": {objects: policies, funcs: failGet(func(obj client.Object) bool {
-			_, ok := obj.(*policyAPI.PolicyException)
-			return ok
-		})},
-		"listing sources for the name claim fails": {objects: policies, funcs: interceptor.Funcs{
-			List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
-				return boom
-			},
-		}},
-	}
-	for name, tc := range cases {
+	for name, funcs := range cases {
 		t.Run(name, func(t *testing.T) {
 			// arrange
-			c := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(tc.objects...).WithInterceptorFuncs(tc.funcs).Build()
+			c := newClientWith(t, funcs, sourcePolicies()...)
 
 			// act
 			_, err := Evaluate(context.Background(), c, bridgeNamespace, source(nil))
 
 			// assert
-			assert.ErrorIs(t, err, boom)
+			assert.ErrorIs(t, err, testsupport.ErrBoom)
 		})
 	}
 }
 
 func TestPolicyRulesErrors(t *testing.T) {
-	boom := errors.New("boom")
-	cases := map[string]func(client.Object) bool{
-		"ClusterPolicy lookup fails": func(obj client.Object) bool {
-			_, ok := obj.(*kyvernov1.ClusterPolicy)
-			return ok
-		},
-		"CEL policy lookup fails": func(obj client.Object) bool {
-			_, ok := obj.(*policiesv1.MutatingPolicy)
-			return ok
-		},
+	cases := map[string]interceptor.Funcs{
+		"ClusterPolicy lookup fails": testsupport.FailGet[*kyvernov1.ClusterPolicy](testsupport.ErrBoom),
+		"CEL policy lookup fails":    testsupport.FailGet[*policiesv1.MutatingPolicy](testsupport.ErrBoom),
 	}
-	for name, match := range cases {
+	for name, funcs := range cases {
 		t.Run(name, func(t *testing.T) {
 			// arrange
-			c := fake.NewClientBuilder().WithScheme(testScheme(t)).WithInterceptorFuncs(interceptor.Funcs{
-				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-					if match(obj) {
-						return boom
-					}
-					return c.Get(ctx, key, obj, opts...)
-				},
-			}).Build()
+			c := newClientWith(t, funcs)
 
 			// act
 			_, found, err := PolicyRules(context.Background(), c)(hostPathPolicy)
 
 			// assert
-			assert.ErrorIs(t, err, boom)
+			assert.ErrorIs(t, err, testsupport.ErrBoom)
 			assert.False(t, found)
 		})
 	}
