@@ -3,6 +3,7 @@ package migration
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -24,17 +25,21 @@ func TestParseSourceKey(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.value, func(t *testing.T) {
 			got, ok := ParseSourceKey(tc.value)
-			if ok != tc.wantOK || got != tc.want {
-				t.Fatalf("got %v, %v; want %v, %v", got, ok, tc.want, tc.wantOK)
-			}
+
+			assert.Equal(t, tc.wantOK, ok)
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
 
 func TestParseSourceKeyRoundTrip(t *testing.T) {
+	// arrange
 	src := source(nil)
+
+	// act
 	got, ok := ParseSourceKey(SourceKey(src))
-	if !ok || got.Namespace != src.Namespace || got.Name != src.Name {
-		t.Fatalf("got %v, %v for %q", got, ok, SourceKey(src))
-	}
+
+	// assert
+	assert.True(t, ok)
+	assert.Equal(t, types.NamespacedName{Namespace: src.Namespace, Name: src.Name}, got)
 }

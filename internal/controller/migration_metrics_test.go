@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -17,6 +18,7 @@ import (
 )
 
 func TestMigrationCollector(t *testing.T) {
+	// arrange
 	s := unitScheme(t)
 	kpo := named(legacySource("*"), "generated")
 	kpo.Labels = map[string]string{migration.ManagedByLabel: migration.KPOComponentName}
@@ -52,13 +54,17 @@ exception_recommender_policyexception_migration_info{migrated_name="",reason="se
 exception_recommender_policyexception_migration_info{migrated_name="cilium-migrated",reason="",source_name="cilium",source_namespace="giantswarm",state="migrated"} 1
 exception_recommender_policyexception_migration_info{migrated_name="drifted-migrated",reason="rule_names",source_name="drifted",source_namespace="giantswarm",state="lossy"} 1
 `
-	if err := testutil.CollectAndCompare(collector, strings.NewReader(expected)); err != nil {
-		t.Fatal(err)
-	}
+
+	// act
+	err := testutil.CollectAndCompare(collector, strings.NewReader(expected))
+
+	// assert
+	assert.NoError(t, err)
 }
 
+// No metrics at all rather than stale ones: alerts must use absent().
 func TestMigrationCollectorListFails(t *testing.T) {
-	// No metrics at all rather than stale ones: alerts must use absent().
+	// arrange
 	s := unitScheme(t)
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(legacySource("*")).WithInterceptorFuncs(interceptor.Funcs{
 		List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
@@ -67,12 +73,16 @@ func TestMigrationCollectorListFails(t *testing.T) {
 	}).Build()
 
 	collector := &MigrationCollector{Reader: c, BridgeNamespace: testBridgeNamespace, Log: logr.Discard()}
-	if n := testutil.CollectAndCount(collector); n != 0 {
-		t.Fatalf("collected %d metrics after a failed list, want 0", n)
-	}
+
+	// act
+	n := testutil.CollectAndCount(collector)
+
+	// assert
+	assert.Zero(t, n, "metrics collected after a failed list")
 }
 
 func TestMigrationCollectorSkipsSourceThatFailsToEvaluate(t *testing.T) {
+	// arrange
 	s := unitScheme(t)
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(
 		nonrootPolicy(), legacySource("*"), existingBridge(ownLabels, "giantswarm/cilium"), named(legacySource("*"), "broken"),
@@ -98,7 +108,10 @@ exception_recommender_legacy_policyexceptions{state="unsupported"} 0
 # TYPE exception_recommender_policyexception_migration_info gauge
 exception_recommender_policyexception_migration_info{migrated_name="cilium-migrated",reason="",source_name="cilium",source_namespace="giantswarm",state="migrated"} 1
 `
-	if err := testutil.CollectAndCompare(collector, strings.NewReader(expected)); err != nil {
-		t.Fatal(err)
-	}
+
+	// act
+	err := testutil.CollectAndCompare(collector, strings.NewReader(expected))
+
+	// assert
+	assert.NoError(t, err)
 }

@@ -7,6 +7,7 @@ import (
 	policiesv1 "github.com/kyverno/api/api/policies.kyverno.io/v1"
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	kyvernov2 "github.com/kyverno/kyverno/api/kyverno/v2"
+	"github.com/stretchr/testify/require"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -32,9 +33,7 @@ func unitScheme(t *testing.T) *runtime.Scheme {
 	for _, add := range []func(*runtime.Scheme) error{
 		kyvernov1.Install, kyvernov2.Install, policiesv1.Install, policyAPI.AddToScheme, apiextensionsv1.AddToScheme,
 	} {
-		if err := add(s); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, add(s))
 	}
 	return s
 }
