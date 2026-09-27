@@ -1,7 +1,7 @@
 apiVersion: v2
 appVersion: 0.3.0
 name: exception-recommender
-description: A Helm chart for exception-recommender, which creates PolicyExceptionDrafts from Kyverno's PolicyReport results.
+description: A Helm chart for exception-recommender, which bridges legacy Kyverno PolicyExceptions to Giant Swarm PolicyExceptions during the CEL migration.
 home: https://github.com/giantswarm/exception-recommender
 icon: https://s.giantswarm.io/app-icons/giantswarm/1/light.svg
 version: 0.3.0
