@@ -13,9 +13,9 @@ func TestParseSourceKey(t *testing.T) {
 		want   types.NamespacedName
 		wantOK bool
 	}{
-		{value: "giantswarm/cilium", want: types.NamespacedName{Namespace: "giantswarm", Name: "cilium"}, wantOK: true},
+		{value: "giantswarm/cilium", want: types.NamespacedName{Namespace: "giantswarm", Name: sourceName}, wantOK: true},
 		{value: ""},
-		{value: "cilium"},
+		{value: sourceName},
 		{value: "/cilium"},
 		{value: "giantswarm/"},
 		{value: "/"},

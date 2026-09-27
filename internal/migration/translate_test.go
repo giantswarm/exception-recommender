@@ -25,6 +25,7 @@ const (
 	hostPathAutogenRule = "autogen-host-path"
 	ciliumNamespace     = "kube-system"
 	ciliumNames         = "cilium*"
+	sourceName          = "cilium"
 	kindPod             = "Pod"
 	kindDeployment      = "Deployment"
 )
