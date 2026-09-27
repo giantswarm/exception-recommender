@@ -3,11 +3,11 @@ package controller
 import (
 	"context"
 	"errors"
-	"slices"
 	"testing"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -42,14 +42,19 @@ func TestMissingKinds(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			got, err := missingKinds(tc.mapper, bridgeCRDs)
-			if (err != nil) != tc.wantErr || !slices.Equal(got, tc.want) {
-				t.Fatalf("got %v, %v; want %v, error %v", got, err, tc.want, tc.wantErr)
+
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
 
 func TestBridgeCRDWatcherStopsOnceCRDsAreServed(t *testing.T) {
+	// arrange
 	results := []struct {
 		missing []string
 		err     error
@@ -68,15 +73,17 @@ func TestBridgeCRDWatcherStopsOnceCRDsAreServed(t *testing.T) {
 		Interval: time.Millisecond,
 		Log:      logr.Discard(),
 	}
-	if err := w.Start(context.Background()); !errors.Is(err, ErrBridgeCRDsAvailable) {
-		t.Fatalf("got %v, want %v", err, ErrBridgeCRDsAvailable)
-	}
-	if checks != len(results) {
-		t.Fatalf("got %d checks, want %d", checks, len(results))
-	}
+
+	// act
+	err := w.Start(context.Background())
+
+	// assert
+	assert.ErrorIs(t, err, ErrBridgeCRDsAvailable)
+	assert.Equal(t, len(results), checks, "a failed or incomplete check must not stop the watcher")
 }
 
 func TestBridgeCRDWatcherStopsWithTheManager(t *testing.T) {
+	// arrange
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	w := &BridgeCRDWatcher{
@@ -84,7 +91,10 @@ func TestBridgeCRDWatcherStopsWithTheManager(t *testing.T) {
 		Interval: time.Hour,
 		Log:      logr.Discard(),
 	}
-	if err := w.Start(ctx); err != nil {
-		t.Fatalf("got %v, want nil", err)
-	}
+
+	// act
+	err := w.Start(ctx)
+
+	// assert
+	assert.NoError(t, err)
 }

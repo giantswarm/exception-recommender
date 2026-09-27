@@ -7,17 +7,20 @@ import (
 
 	policyAPI "github.com/giantswarm/policy-api/api/v1alpha1"
 	policiesv1 "github.com/kyverno/api/api/policies.kyverno.io/v1"
+	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	kyvernov2 "github.com/kyverno/kyverno/api/kyverno/v2"
-	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/giantswarm/exception-recommender/internal/migration"
+	"github.com/giantswarm/exception-recommender/internal/testsupport"
 )
 
 // newReconciler uses cached as the manager's cached client and api as the uncached API reader.
@@ -25,305 +28,270 @@ func newReconciler(cached, api client.Client) *LegacyExceptionReconciler {
 	return &LegacyExceptionReconciler{Client: cached, APIReader: api, BridgeNamespace: testBridgeNamespace}
 }
 
-func reconcileSource(t *testing.T, r *LegacyExceptionReconciler) error {
+// reconcileSource reconciles the sources at keys in order, or sourceKey when none are given.
+func reconcileSource(t *testing.T, r *LegacyExceptionReconciler, keys ...types.NamespacedName) error {
 	t.Helper()
-	_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: sourceKey})
-	return err
-}
-
-func getBridge(t *testing.T, c client.Client) (*policyAPI.PolicyException, bool) {
-	t.Helper()
-	var bridge policyAPI.PolicyException
-	err := c.Get(context.Background(), bridgeKey, &bridge)
-	if apierrors.IsNotFound(err) {
-		return nil, false
+	if len(keys) == 0 {
+		keys = []types.NamespacedName{sourceKey}
 	}
-	if err != nil {
-		t.Fatal(err)
+	for _, key := range keys {
+		if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: key}); err != nil {
+			return err
+		}
 	}
-	return &bridge, true
+	return nil
 }
 
 func TestReconcileWritesBridge(t *testing.T) {
-	s := unitScheme(t)
-	c := fake.NewClientBuilder().WithScheme(s).
-		WithObjects(nonrootPolicy(), legacySource("run-as-non-root", "autogen-run-as-non-root")).Build()
+	// arrange
+	c := newClient(t, nonrootPolicy(), exactSource())
 
-	if err := reconcileSource(t, newReconciler(c, c)); err != nil {
-		t.Fatal(err)
-	}
-	bridge, ok := getBridge(t, c)
-	if !ok {
-		t.Fatal("bridge not created")
-	}
-	if bridge.Labels[migration.ManagedByLabel] != migration.ComponentName ||
-		bridge.Annotations[migration.AnnotationMigratedFrom] != "giantswarm/cilium" {
-		t.Fatalf("wrong metadata: %v %v", bridge.Labels, bridge.Annotations)
-	}
-	if len(bridge.Spec.Policies) != 1 || len(bridge.Spec.Targets) != 2 || len(bridge.OwnerReferences) != 0 {
-		t.Fatalf("wrong bridge: %+v", bridge)
-	}
+	// act
+	err := reconcileSource(t, newReconciler(c, c))
+
+	// assert
+	require.NoError(t, err)
+	bridge := requireBridge(t, c)
+	assert.Equal(t, migration.ComponentName, bridge.Labels[migration.ManagedByLabel])
+	assert.Equal(t, migration.SourceKey(exactSource()), bridge.Annotations[migration.AnnotationMigratedFrom])
+	assert.Equal(t, []string{testPolicyName}, bridge.Spec.Policies)
+	assert.Len(t, bridge.Spec.Targets, 2)
+	assert.Empty(t, bridge.OwnerReferences)
 }
 
 func TestReconcileUpdatesOwnBridge(t *testing.T) {
-	s := unitScheme(t)
-	c := fake.NewClientBuilder().WithScheme(s).WithObjects(nonrootPolicy(),
-		legacySource("*"), existingBridge(ownLabels, "giantswarm/cilium")).Build()
+	// arrange
+	c := newClient(t, nonrootPolicy(), exactSource(), bridgeOf(exactSource()))
 
-	if err := reconcileSource(t, newReconciler(c, c)); err != nil {
-		t.Fatal(err)
-	}
-	bridge, _ := getBridge(t, c)
-	if bridge.Spec.Policies[0] != testPolicyName {
-		t.Fatalf("bridge not updated: %+v", bridge.Spec)
-	}
+	// act
+	err := reconcileSource(t, newReconciler(c, c))
+
+	// assert
+	require.NoError(t, err)
+	bridge := requireBridge(t, c)
+	assert.Equal(t, []string{testPolicyName}, bridge.Spec.Policies, "bridge not updated")
+	assert.Len(t, bridge.Spec.Targets, 2, "bridge not updated")
 }
 
-func TestReconcileNeverTouchesUnlabelledGSPolex(t *testing.T) {
-	s := unitScheme(t)
+func TestReconcileNeverTouchesHandWrittenBridge(t *testing.T) {
 	for name, objects := range map[string][]client.Object{
-		"source exists": {nonrootPolicy(), legacySource("*"), existingBridge(nil, "giantswarm/cilium"), legacyCRD()},
-		"source gone":   {existingBridge(nil, "giantswarm/cilium"), legacyCRD()},
+		"source exists": {nonrootPolicy(), exactSource(), handWrittenBridgeFor(exactSource()), legacyCRD()},
+		"source gone":   {handWrittenBridgeFor(exactSource()), legacyCRD()},
 	} {
 		t.Run(name, func(t *testing.T) {
-			c := fake.NewClientBuilder().WithScheme(s).WithObjects(objects...).Build()
-			if err := reconcileSource(t, newReconciler(c, c)); err != nil {
-				t.Fatal(err)
-			}
-			bridge, ok := getBridge(t, c)
-			if !ok || bridge.Spec.Policies[0] != stalePolicy {
-				t.Fatalf("unlabelled gspolex was changed or deleted: %+v", bridge)
-			}
+			// arrange
+			c := newClient(t, objects...)
+			before := requireBridge(t, c)
+
+			// act
+			err := reconcileSource(t, newReconciler(c, c))
+
+			// assert
+			require.NoError(t, err)
+			assertBridgeUnchanged(t, c, before)
 		})
 	}
 }
 
 func TestReconcileSkipsKPOManagedSource(t *testing.T) {
-	s := unitScheme(t)
-	src := legacySource("*")
-	src.Labels = map[string]string{migration.ManagedByLabel: migration.KPOComponentName}
-	c := fake.NewClientBuilder().WithScheme(s).WithObjects(nonrootPolicy(), src).Build()
+	// arrange
+	c := newClient(t, nonrootPolicy(), kpoSource())
 
-	if err := reconcileSource(t, newReconciler(c, c)); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := getBridge(t, c); ok {
-		t.Fatal("bridged a kyverno-policy-operator exception")
-	}
+	// act
+	err := reconcileSource(t, newReconciler(c, c))
+
+	// assert
+	require.NoError(t, err)
+	assertNoBridge(t, c, "bridged a kyverno-policy-operator exception")
 }
 
 func TestReconcileKeepsBridgeWhenSourceDrifts(t *testing.T) {
-	s := unitScheme(t)
-	unsupported := legacySource("*")
-	unsupported.Spec.Match.Any[0].Selector = &metav1.LabelSelector{MatchLabels: map[string]string{"app": "cilium"}}
 	for name, src := range map[string]*kyvernov2.PolicyException{
-		"lossy":       legacySource("run-as-non-root"),
-		"unsupported": unsupported,
+		"lossy":       lossySource(),
+		"unsupported": unsupportedSource(),
 	} {
 		t.Run(name, func(t *testing.T) {
-			c := fake.NewClientBuilder().WithScheme(s).WithObjects(nonrootPolicy(), src,
-				existingBridge(ownLabels, "giantswarm/cilium"), legacyCRD()).Build()
-			written, _ := getBridge(t, c)
-			before := testutil.ToFloat64(BridgesRemoved)
+			// arrange
+			c := newClient(t, nonrootPolicy(), src, bridgeOf(src), legacyCRD())
+			before := requireBridge(t, c)
+			removed := testsupport.CounterDelta(BridgesRemoved)
 
-			if err := reconcileSource(t, newReconciler(c, c)); err != nil {
-				t.Fatal(err)
-			}
-			bridge, ok := getBridge(t, c)
-			if !ok || bridge.ResourceVersion != written.ResourceVersion {
-				t.Fatalf("bridge of a %s source removed or rewritten: %+v", name, bridge)
-			}
-			if got := testutil.ToFloat64(BridgesRemoved) - before; got != 0 {
-				t.Fatalf("bridges_removed_total grew by %v, want 0", got)
-			}
+			// act
+			err := reconcileSource(t, newReconciler(c, c))
+
+			// assert
+			require.NoError(t, err)
+			assertBridgeUnchanged(t, c, before)
+			assert.Zero(t, removed(), "bridges_removed_total grew")
 		})
 	}
 }
 
+// Exact source -> bridge; source edited to be lossy -> bridge kept unchanged, state lossy;
+// source deleted -> bridge removed.
 func TestReconcileBridgeLifecycle(t *testing.T) {
-	// Exact source -> bridge; source edited to be lossy -> bridge kept unchanged, state lossy;
-	// source deleted -> bridge removed.
 	ctx := context.Background()
-	s := unitScheme(t)
-	src := legacySource("run-as-non-root", "autogen-run-as-non-root")
-	c := fake.NewClientBuilder().WithScheme(s).WithObjects(nonrootPolicy(), src, legacyCRD()).Build()
+	src := exactSource()
+	c := newClient(t, nonrootPolicy(), src, legacyCRD())
 	r := newReconciler(c, c)
 
-	if err := reconcileSource(t, r); err != nil {
-		t.Fatal(err)
-	}
-	written, ok := getBridge(t, c)
-	if !ok {
-		t.Fatal("bridge not created")
-	}
+	// exact source: bridge written
+	require.NoError(t, reconcileSource(t, r))
+	written := requireBridge(t, c)
 
-	if err := c.Get(ctx, sourceKey, src); err != nil {
-		t.Fatal(err)
-	}
-	src.Spec.Exceptions[0].RuleNames = []string{"run-as-non-root"}
-	if err := c.Update(ctx, src); err != nil {
-		t.Fatal(err)
-	}
-	if err := reconcileSource(t, r); err != nil {
-		t.Fatal(err)
-	}
-	kept, ok := getBridge(t, c)
-	if !ok || kept.ResourceVersion != written.ResourceVersion {
-		t.Fatalf("bridge removed or changed after the source turned lossy: %+v", kept)
-	}
+	// source turns lossy: bridge kept unchanged
+	require.NoError(t, c.Get(ctx, sourceKey, src))
+	src.Spec.Exceptions = lossySource().Spec.Exceptions
+	require.NoError(t, c.Update(ctx, src))
+
+	require.NoError(t, reconcileSource(t, r))
+
+	assertBridgeUnchanged(t, c, written)
 	status, err := migration.Evaluate(ctx, c, testBridgeNamespace, src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if status.State != migration.StateLossy || status.Reason != migration.ReasonRuleNames || !status.OwnsBridge(src) {
-		t.Fatalf("got state %q reason %q owns bridge %v, want lossy rule_names with the bridge kept",
-			status.State, status.Reason, status.OwnsBridge(src))
-	}
+	require.NoError(t, err)
+	assert.Equal(t, migration.StateLossy, status.State)
+	assert.Equal(t, migration.ReasonRuleNames, status.Reason)
+	assert.True(t, status.OwnsBridge(src), "bridge no longer owned by the source")
 
-	if err := c.Delete(ctx, src); err != nil {
-		t.Fatal(err)
-	}
-	if err := reconcileSource(t, r); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := getBridge(t, c); ok {
-		t.Fatal("bridge of a deleted source kept")
-	}
+	// source deleted: bridge removed
+	require.NoError(t, c.Delete(ctx, src))
+
+	require.NoError(t, reconcileSource(t, r))
+
+	assertNoBridge(t, c, "bridge of a deleted source kept")
 }
 
+// The ClusterPolicy was replaced by a ValidatingPolicy of the same name: ruleNames are not checked,
+// so even a source that was lossy against the ClusterPolicy is bridged.
 func TestReconcileBridgesThroughCELPolicy(t *testing.T) {
-	// The ClusterPolicy was replaced by a ValidatingPolicy of the same name: ruleNames are not checked.
-	s := unitScheme(t)
-	c := fake.NewClientBuilder().WithScheme(s).WithObjects(
-		&policiesv1.ValidatingPolicy{ObjectMeta: metav1.ObjectMeta{Name: testPolicyName}},
-		legacySource("run-as-non-root")).Build()
+	// arrange
+	c := newClient(t, &policiesv1.ValidatingPolicy{ObjectMeta: metav1.ObjectMeta{Name: testPolicyName}}, lossySource())
 
-	if err := reconcileSource(t, newReconciler(c, c)); err != nil {
-		t.Fatal(err)
-	}
-	bridge, ok := getBridge(t, c)
-	if !ok || bridge.Spec.Policies[0] != testPolicyName {
-		t.Fatalf("no bridge for a source whose policy is a ValidatingPolicy: %+v", bridge)
-	}
+	// act
+	err := reconcileSource(t, newReconciler(c, c))
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, []string{testPolicyName}, requireBridge(t, c).Spec.Policies)
 }
 
 func TestReconcileWritesNothingWithoutAnyPolicy(t *testing.T) {
-	s := unitScheme(t)
-	src := legacySource("run-as-non-root")
-	c := fake.NewClientBuilder().WithScheme(s).WithObjects(src).Build()
+	// arrange
+	src := exactSource()
+	c := newClient(t, src)
 
-	if err := reconcileSource(t, newReconciler(c, c)); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := getBridge(t, c); ok {
-		t.Fatal("bridged a source whose policy does not exist")
-	}
+	// act
+	err := reconcileSource(t, newReconciler(c, c))
+
+	// assert
+	require.NoError(t, err)
+	assertNoBridge(t, c, "bridged a source whose policy does not exist")
 	status, err := migration.Evaluate(context.Background(), c, testBridgeNamespace, src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if status.State != migration.StatePending || status.Reason != migration.ReasonPolicyNotFound {
-		t.Fatalf("got state %q reason %q, want pending policy_not_found", status.State, status.Reason)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, migration.StatePending, status.State)
+	assert.Equal(t, migration.ReasonPolicyNotFound, status.Reason)
 }
 
+// Two sources with the same name share a bridge name. The one whose "namespace/name" sorts lowest
+// gets it, unless the other already owns the bridge.
 func TestReconcileSameNameTieBreak(t *testing.T) {
-	// "default/cilium" sorts before "giantswarm/cilium" (sourceKey).
-	ctx := context.Background()
-	s := unitScheme(t)
-	lower := legacySource("*")
-	lower.Namespace = "default"
-	reconcileBoth := func(t *testing.T, r *LegacyExceptionReconciler, keys ...types.NamespacedName) {
-		t.Helper()
-		for _, key := range keys {
-			if _, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: key}); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
-	lowerKey := client.ObjectKeyFromObject(lower)
+	higher := exactSource() // giantswarm/cilium
+	lower := inNamespace(exactSource(), "default")
+	higherKey, lowerKey := client.ObjectKeyFromObject(higher), client.ObjectKeyFromObject(lower)
 
-	for name, keys := range map[string][]types.NamespacedName{
-		"higher reconciled first": {sourceKey, lowerKey},
-		"lower reconciled first":  {lowerKey, sourceKey},
+	for name, order := range map[string][]types.NamespacedName{
+		"higher reconciled first": {higherKey, lowerKey},
+		"lower reconciled first":  {lowerKey, higherKey},
 	} {
 		t.Run("no bridge yet, "+name, func(t *testing.T) {
-			c := fake.NewClientBuilder().WithScheme(s).WithObjects(nonrootPolicy(), legacySource("*"), lower.DeepCopy()).Build()
-			reconcileBoth(t, newReconciler(c, c), keys...)
-			bridge, ok := getBridge(t, c)
-			if !ok || bridge.Annotations[migration.AnnotationMigratedFrom] != "default/cilium" {
-				t.Fatalf("bridge not owned by the lowest-sorting source: %+v", bridge)
-			}
+			// arrange
+			c := newClient(t, nonrootPolicy(), higher.DeepCopy(), lower.DeepCopy())
+
+			// act
+			err := reconcileSource(t, newReconciler(c, c), order...)
+
+			// assert
+			require.NoError(t, err)
+			assert.Equal(t, migration.SourceKey(lower), requireBridge(t, c).Annotations[migration.AnnotationMigratedFrom],
+				"bridge not owned by the lowest-sorting source")
 		})
 		t.Run("existing bridge of the higher source, "+name, func(t *testing.T) {
-			c := fake.NewClientBuilder().WithScheme(s).WithObjects(nonrootPolicy(), legacySource("*"), lower.DeepCopy(),
-				existingBridge(ownLabels, "giantswarm/cilium")).Build()
-			reconcileBoth(t, newReconciler(c, c), keys...)
-			bridge, ok := getBridge(t, c)
-			if !ok || bridge.Annotations[migration.AnnotationMigratedFrom] != "giantswarm/cilium" {
-				t.Fatalf("bridge ownership moved: %+v", bridge)
-			}
+			// arrange
+			c := newClient(t, nonrootPolicy(), higher.DeepCopy(), lower.DeepCopy(), bridgeOf(higher))
+
+			// act
+			err := reconcileSource(t, newReconciler(c, c), order...)
+
+			// assert
+			require.NoError(t, err)
+			assert.Equal(t, migration.SourceKey(higher), requireBridge(t, c).Annotations[migration.AnnotationMigratedFrom],
+				"bridge ownership moved")
 		})
 	}
 }
 
 func TestReconcileRemovesBridgeWhenSourceDeleted(t *testing.T) {
-	s := unitScheme(t)
-	c := fake.NewClientBuilder().WithScheme(s).WithObjects(existingBridge(ownLabels, "giantswarm/cilium"), legacyCRD()).Build()
-	before := testutil.ToFloat64(BridgesRemoved)
+	// arrange
+	c := newClient(t, bridgeOf(exactSource()), legacyCRD())
+	removed := testsupport.CounterDelta(BridgesRemoved)
 
-	if err := reconcileSource(t, newReconciler(c, c)); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := getBridge(t, c); ok {
-		t.Fatal("bridge of a deleted source kept")
-	}
-	if got := testutil.ToFloat64(BridgesRemoved) - before; got != 1 {
-		t.Fatalf("bridges_removed_total grew by %v, want 1", got)
-	}
+	// act
+	err := reconcileSource(t, newReconciler(c, c))
+
+	// assert
+	require.NoError(t, err)
+	assertNoBridge(t, c, "bridge of a deleted source kept")
+	assert.Equal(t, 1.0, removed(), "bridges_removed_total growth")
 }
 
+// The cached client says the source is gone; the bridge is only deleted once the API server
+// confirms it and the legacy CRD is healthy.
 func TestReconcileKeepsBridgeWhenDeletionIsNotConfirmed(t *testing.T) {
-	s := unitScheme(t)
 	now := metav1.Now()
 	terminating := legacyCRD()
 	terminating.DeletionTimestamp, terminating.Finalizers = &now, []string{"customresourcecleanup.apiextensions.k8s.io"}
 	notServed := legacyCRD()
 	notServed.Spec.Versions[0].Served = false
-	failingGet := interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-		return errors.New("connection refused")
-	}}
 
 	cases := map[string]struct {
-		api     client.Client
-		wantErr bool
+		api     func(t *testing.T) client.Client
+		wantErr error
 	}{
-		"source still on the API server": {api: fake.NewClientBuilder().WithScheme(s).WithObjects(legacyCRD(), legacySource("*")).Build()},
-		"legacy CRD being deleted":       {api: fake.NewClientBuilder().WithScheme(s).WithObjects(terminating).Build()},
-		"legacy CRD not found":           {api: fake.NewClientBuilder().WithScheme(s).Build()},
-		"legacy CRD does not serve v2":   {api: fake.NewClientBuilder().WithScheme(s).WithObjects(notServed).Build()},
-		"API server unreachable":         {api: fake.NewClientBuilder().WithScheme(s).WithInterceptorFuncs(failingGet).Build(), wantErr: true},
+		"source still on the API server": {api: func(t *testing.T) client.Client { return newClient(t, legacyCRD(), exactSource()) }},
+		"legacy CRD being deleted":       {api: func(t *testing.T) client.Client { return newClient(t, terminating) }},
+		"legacy CRD not found":           {api: func(t *testing.T) client.Client { return newClient(t) }},
+		"legacy CRD does not serve v2":   {api: func(t *testing.T) client.Client { return newClient(t, notServed) }},
+		"API server unreachable": {api: func(t *testing.T) client.Client {
+			return newClientWith(t, testsupport.FailAllGets(testsupport.ErrBoom))
+		}, wantErr: testsupport.ErrBoom},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			cached := fake.NewClientBuilder().WithScheme(s).WithObjects(existingBridge(ownLabels, "giantswarm/cilium")).Build()
-			err := reconcileSource(t, newReconciler(cached, tc.api))
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("got error %v, want error %v", err, tc.wantErr)
+			// arrange
+			cached := newClient(t, bridgeOf(exactSource()))
+			before := requireBridge(t, cached)
+
+			// act
+			err := reconcileSource(t, newReconciler(cached, tc.api(t)))
+
+			// assert
+			if tc.wantErr != nil {
+				assert.ErrorIs(t, err, tc.wantErr)
+			} else {
+				assert.NoError(t, err)
 			}
-			if _, ok := getBridge(t, cached); !ok {
-				t.Fatal("bridge deleted without confirmation")
-			}
+			assertBridgeUnchanged(t, cached, before)
 		})
 	}
 }
 
+// The cache still holds the checked bridge while the API server has a new object of that name.
 func TestReconcileKeepsBridgeRecreatedBeforeDelete(t *testing.T) {
-	// The cache still holds the checked bridge while the API server has a new object of that name.
-	s := unitScheme(t)
-	recreated := existingBridge(ownLabels, "giantswarm/cilium")
+	// arrange
+	recreated := bridgeOf(exactSource())
 	recreated.UID = "recreated"
 	funcs := interceptor.Funcs{
+		// The cache serves the bridge as it was when checked.
 		Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 			if err := c.Get(ctx, key, obj, opts...); err != nil {
 				return err
@@ -344,32 +312,166 @@ func TestReconcileKeepsBridgeRecreatedBeforeDelete(t *testing.T) {
 			return c.Delete(ctx, obj, opts...)
 		},
 	}
-	cached := fake.NewClientBuilder().WithScheme(s).WithObjects(recreated).WithInterceptorFuncs(funcs).Build()
-	api := fake.NewClientBuilder().WithScheme(s).WithObjects(legacyCRD()).Build()
-	before := testutil.ToFloat64(BridgesRemoved)
+	cached := newClientWith(t, funcs, recreated)
+	api := newClient(t, legacyCRD())
+	removed := testsupport.CounterDelta(BridgesRemoved)
 
-	if err := reconcileSource(t, newReconciler(cached, api)); !apierrors.IsConflict(err) {
-		t.Fatalf("got error %v, want a conflict", err)
+	// act
+	err := reconcileSource(t, newReconciler(cached, api))
+
+	// assert
+	assert.True(t, apierrors.IsConflict(err), "got error %v, want a conflict", err)
+	requireBridge(t, cached)
+	assert.Zero(t, removed(), "bridges_removed_total grew")
+}
+
+// Neither a ClusterPolicy nor a CEL policy of that name exists any more: the bridge stays as written.
+func TestReconcileKeepsBridgeWhenPolicyGone(t *testing.T) {
+	// arrange
+	c := newClient(t, exactSource(), bridgeOf(exactSource()))
+	before := requireBridge(t, c)
+
+	// act
+	err := reconcileSource(t, newReconciler(c, c))
+
+	// assert
+	require.NoError(t, err)
+	assertBridgeUnchanged(t, c, before)
+}
+
+// Evaluate saw no bridge; by the time the bridge is written, someone else created that name.
+func TestReconcileNeverTakesOverObjectCreatedAfterEvaluate(t *testing.T) {
+	// arrange
+	hideNextBridgeGet := false
+	c := newClientWith(t, interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+		if _, ok := obj.(*policyAPI.PolicyException); ok && hideNextBridgeGet {
+			hideNextBridgeGet = false
+			return apierrors.NewNotFound(policyAPI.GroupVersion.WithResource("policyexceptions").GroupResource(), key.Name)
+		}
+		return c.Get(ctx, key, obj, opts...)
+	}}, nonrootPolicy(), exactSource(), handWrittenBridgeFor(exactSource()))
+	before := requireBridge(t, c)
+	hideNextBridgeGet = true
+	applyFailed := testsupport.CounterDelta(TranslationErrors.WithLabelValues(ReasonApplyFailed))
+
+	// act
+	err := reconcileSource(t, newReconciler(c, c))
+
+	// assert
+	require.NoError(t, err, "a name collision is not an error")
+	assertBridgeUnchanged(t, c, before)
+	assert.Zero(t, applyFailed(), "apply_failed grew")
+}
+
+func TestReconcileWriteFailure(t *testing.T) {
+	// arrange
+	c := newClientWith(t, testsupport.FailCreate(testsupport.ErrBoom), nonrootPolicy(), exactSource())
+	applyFailed := testsupport.CounterDelta(TranslationErrors.WithLabelValues(ReasonApplyFailed))
+
+	// act
+	err := reconcileSource(t, newReconciler(c, c))
+
+	// assert
+	assert.ErrorIs(t, err, testsupport.ErrBoom)
+	assert.Equal(t, 1.0, applyFailed(), "apply_failed growth")
+}
+
+func TestReconcileSourceGetFails(t *testing.T) {
+	// arrange
+	cached := newClientWith(t, testsupport.FailGet[*kyvernov2.PolicyException](testsupport.ErrBoom),
+		bridgeOf(exactSource()), legacyCRD())
+	// The API reader has no source either: only the failed cache read may stop the delete.
+	api := newClient(t, legacyCRD())
+
+	// act
+	err := reconcileSource(t, newReconciler(cached, api))
+
+	// assert
+	assert.ErrorIs(t, err, testsupport.ErrBoom)
+	requireBridge(t, cached)
+}
+
+func TestReconcileEvaluateFails(t *testing.T) {
+	// arrange
+	c := newClientWith(t, testsupport.FailGet[*kyvernov1.ClusterPolicy](testsupport.ErrBoom), nonrootPolicy(), exactSource())
+	lookupFailed := testsupport.CounterDelta(TranslationErrors.WithLabelValues(ReasonLookupFailed))
+
+	// act
+	err := reconcileSource(t, newReconciler(c, c))
+
+	// assert
+	assert.ErrorIs(t, err, testsupport.ErrBoom)
+	assertNoBridge(t, c, "bridge written although the policy lookup failed")
+	assert.Equal(t, 1.0, lookupFailed(), "lookup_failed growth")
+}
+
+func TestReconcileBridgeGetFailsWhenSourceGone(t *testing.T) {
+	// arrange
+	c := newClientWith(t, testsupport.FailGet[*policyAPI.PolicyException](testsupport.ErrBoom), legacyCRD())
+
+	// act
+	err := reconcileSource(t, newReconciler(c, c))
+
+	// assert
+	assert.ErrorIs(t, err, testsupport.ErrBoom)
+}
+
+func TestReconcileDeleteOutcomes(t *testing.T) {
+	cases := map[string]struct {
+		deleteErr       error
+		wantErr         error
+		wantDeleteFails float64
+	}{
+		"already deleted by someone else": {
+			deleteErr: apierrors.NewNotFound(policyAPI.GroupVersion.WithResource("policyexceptions").GroupResource(), bridgeKey.Name),
+		},
+		"delete fails": {deleteErr: testsupport.ErrBoom, wantErr: testsupport.ErrBoom, wantDeleteFails: 1},
 	}
-	if _, ok := getBridge(t, cached); !ok {
-		t.Fatal("bridge recreated after the check was deleted")
-	}
-	if got := testutil.ToFloat64(BridgesRemoved) - before; got != 0 {
-		t.Fatalf("bridges_removed_total grew by %v, want 0", got)
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			// arrange
+			c := newClientWith(t, testsupport.FailDelete(tc.deleteErr), bridgeOf(exactSource()), legacyCRD())
+			removed := testsupport.CounterDelta(BridgesRemoved)
+			deleteFailed := testsupport.CounterDelta(TranslationErrors.WithLabelValues(ReasonDeleteFailed))
+
+			// act
+			err := reconcileSource(t, newReconciler(c, c))
+
+			// assert
+			if tc.wantErr != nil {
+				assert.ErrorIs(t, err, tc.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Zero(t, removed(), "bridges_removed_total counts only deletes this controller made")
+			assert.Equal(t, tc.wantDeleteFails, deleteFailed(), "delete_failed growth")
+		})
 	}
 }
 
-func TestReconcileKeepsBridgeWhenPolicyGone(t *testing.T) {
-	// Neither a ClusterPolicy nor a CEL policy of that name exists any more: the bridge stays as written.
-	s := unitScheme(t)
-	c := fake.NewClientBuilder().WithScheme(s).WithObjects(
-		legacySource("run-as-non-root", "autogen-run-as-non-root"), existingBridge(ownLabels, "giantswarm/cilium")).Build()
+func TestBridgeToSource(t *testing.T) {
+	kpoLabelled := bridgeOf(exactSource())
+	kpoLabelled.Labels[migration.ManagedByLabel] = migration.KPOComponentName
+	noAnnotation := bridgeOf(exactSource())
+	noAnnotation.Annotations = nil
+	malformedAnnotation := bridgeOf(exactSource())
+	malformedAnnotation.Annotations[migration.AnnotationMigratedFrom] = sourceKey.Name
 
-	if err := reconcileSource(t, newReconciler(c, c)); err != nil {
-		t.Fatal(err)
+	cases := map[string]struct {
+		bridge *policyAPI.PolicyException
+		want   []reconcile.Request
+	}{
+		"own bridge":                         {bridge: bridgeOf(exactSource()), want: []reconcile.Request{{NamespacedName: sourceKey}}},
+		"no managed-by label":                {bridge: handWrittenBridgeFor(exactSource())},
+		"managed by kyverno-policy-operator": {bridge: kpoLabelled},
+		"no migrated-from annotation":        {bridge: noAnnotation},
+		"malformed migrated-from annotation": {bridge: malformedAnnotation},
 	}
-	bridge, ok := getBridge(t, c)
-	if !ok || bridge.Spec.Policies[0] != stalePolicy {
-		t.Fatalf("bridge removed or rewritten after its policy went away: %+v", bridge)
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			got := bridgeToSource(context.Background(), tc.bridge)
+
+			assert.Equal(t, tc.want, got)
+		})
 	}
 }

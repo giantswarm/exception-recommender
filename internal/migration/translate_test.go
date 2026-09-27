@@ -1,16 +1,18 @@
 package migration
 
 import (
-	"errors"
-	"reflect"
 	"strings"
 	"testing"
 
 	policyAPI "github.com/giantswarm/policy-api/api/v1alpha1"
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
 	kyvernov2 "github.com/kyverno/kyverno/api/kyverno/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/giantswarm/exception-recommender/internal/testsupport"
 )
 
 // Names shared by the tests.
@@ -23,6 +25,7 @@ const (
 	hostPathAutogenRule = "autogen-host-path"
 	ciliumNamespace     = "kube-system"
 	ciliumNames         = "cilium*"
+	sourceName          = "cilium"
 	kindPod             = "Pod"
 	kindDeployment      = "Deployment"
 )
@@ -68,10 +71,7 @@ func source(mutate func(*kyvernov2.PolicyException)) *kyvernov2.PolicyException 
 }
 
 func TestTranslateExact(t *testing.T) {
-	got, err := Translate(source(nil), clusterPolicies)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// arrange
 	want := Translation{Spec: policyAPI.PolicyExceptionSpec{
 		Policies: []string{nonrootPolicy, hostPathPolicy},
 		Targets: []policyAPI.Target{
@@ -79,9 +79,13 @@ func TestTranslateExact(t *testing.T) {
 			{Kind: kindPod, Names: []string{ciliumNames}, Namespaces: []string{ciliumNamespace}},
 		},
 	}}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("got %+v\nwant %+v", got, want)
-	}
+
+	// act
+	got, err := Translate(source(nil), clusterPolicies)
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, want, got)
 }
 
 func TestTranslateStates(t *testing.T) {
@@ -194,17 +198,19 @@ func TestTranslateStates(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			// arrange
 			lookup := tc.lookup
 			if lookup == nil {
 				lookup = clusterPolicies
 			}
+
+			// act
 			got, err := Translate(source(tc.mutate), lookup)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got.State != tc.wantState || got.Reason != tc.wantReason {
-				t.Fatalf("got state %q reason %q, want %q %q", got.State, got.Reason, tc.wantState, tc.wantReason)
-			}
+
+			// assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantState, got.State)
+			assert.Equal(t, tc.wantReason, got.Reason)
 		})
 	}
 }
@@ -237,47 +243,56 @@ func TestTranslateKindFormats(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.kind, func(t *testing.T) {
-			got, err := Translate(source(func(p *kyvernov2.PolicyException) {
+			// arrange
+			src := source(func(p *kyvernov2.PolicyException) {
 				p.Spec.Match.Any[0].Kinds = []string{tc.kind}
 				// Wildcard rule names keep CronJob rule coverage out of this test.
 				for i := range p.Spec.Exceptions {
 					p.Spec.Exceptions[i].RuleNames = []string{"*"}
 				}
-			}), clusterPolicies)
-			if err != nil {
-				t.Fatal(err)
-			}
+			})
+
+			// act
+			got, err := Translate(src, clusterPolicies)
+
+			// assert
+			require.NoError(t, err)
 			if !tc.supported {
-				if got.State != StateUnsupported || got.Reason != ReasonKindFormat {
-					t.Fatalf("got state %q reason %q, want unsupported kind_format", got.State, got.Reason)
-				}
+				assert.Equal(t, StateUnsupported, got.State)
+				assert.Equal(t, ReasonKindFormat, got.Reason)
 				return
 			}
-			if got.State != "" || len(got.Spec.Targets) != 1 || got.Spec.Targets[0].Kind != tc.kind {
-				t.Fatalf("got state %q targets %+v, want exact with kind %q", got.State, got.Spec.Targets, tc.kind)
-			}
+			assert.Empty(t, got.State)
+			require.Len(t, got.Spec.Targets, 1)
+			assert.Equal(t, tc.kind, got.Spec.Targets[0].Kind)
 		})
 	}
 }
 
 func TestTranslateLookupError(t *testing.T) {
-	boom := errors.New("boom")
-	_, err := Translate(source(nil), func(string) ([]string, bool, error) { return nil, false, boom })
-	if !errors.Is(err, boom) {
-		t.Fatalf("got %v, want %v", err, boom)
-	}
+	// arrange
+	failingLookup := func(string) ([]string, bool, error) { return nil, false, testsupport.ErrBoom }
+
+	// act
+	_, err := Translate(source(nil), failingLookup)
+
+	// assert
+	assert.ErrorIs(t, err, testsupport.ErrBoom)
 }
 
+// The gspolex CRD requires names and namespaces; null would be rejected.
 func TestTranslateNilListsBecomeEmpty(t *testing.T) {
-	// The gspolex CRD requires names and namespaces; null would be rejected.
-	got, err := Translate(source(func(p *kyvernov2.PolicyException) {
+	// arrange
+	src := source(func(p *kyvernov2.PolicyException) {
 		p.Spec.Match.Any = kyvernov1.ResourceFilters{{ResourceDescription: kyvernov1.ResourceDescription{Kinds: []string{kindPod}}}}
-	}), clusterPolicies)
-	if err != nil {
-		t.Fatal(err)
-	}
-	target := got.Spec.Targets[0]
-	if target.Names == nil || target.Namespaces == nil {
-		t.Fatalf("got nil lists in %+v", target)
-	}
+	})
+
+	// act
+	got, err := Translate(src, clusterPolicies)
+
+	// assert
+	require.NoError(t, err)
+	require.Len(t, got.Spec.Targets, 1)
+	assert.NotNil(t, got.Spec.Targets[0].Names)
+	assert.NotNil(t, got.Spec.Targets[0].Namespaces)
 }
