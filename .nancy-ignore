@@ -7,3 +7,4 @@ CVE-2026-56864 until=2026-10-07 # golang.org/x/mod@v0.37.0
 CVE-2026-56865 until=2026-10-07 # golang.org/x/mod@v0.37.0
 CVE-2026-63209 until=2026-10-09 # github.com/klauspost/compress@v1.18.5
 CVE-2021-43668 until=2026-10-09 # github.com/syndtr/goleveldb@v1.0.1-0.20220721030215-126854af5e6d
+CVE-2026-81092 until=2026-10-30 # github.com/mark3labs/mcp-go@v0.49.0

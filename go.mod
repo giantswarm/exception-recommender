@@ -101,7 +101,10 @@ replace oras.land/oras-go/v2 v2.6.0 => oras.land/oras-go/v2 v2.6.2
 
 replace golang.org/x/sys v0.43.0 => golang.org/x/sys v0.47.0
 
-replace go.opentelemetry.io/otel v1.43.0 => go.opentelemetry.io/otel v1.45.0
+replace (
+	go.opentelemetry.io/otel v1.43.0 => go.opentelemetry.io/otel v1.45.0
+	go.opentelemetry.io/otel v1.44.0 => go.opentelemetry.io/otel v1.46.0
+)
 
 replace github.com/yuin/goldmark v1.4.13 => github.com/yuin/goldmark v1.8.5
 
@@ -121,8 +124,17 @@ replace google.golang.org/grpc v1.80.0 => google.golang.org/grpc v1.83.2
 
 replace golang.org/x/crypto v0.53.0 => golang.org/x/crypto v0.56.0
 
-replace go.opentelemetry.io/otel/sdk v1.43.0 => go.opentelemetry.io/otel/sdk v1.46.0
+replace (
+	go.opentelemetry.io/otel/sdk v1.43.0 => go.opentelemetry.io/otel/sdk v1.46.0
+	go.opentelemetry.io/otel/sdk v1.44.0 => go.opentelemetry.io/otel/sdk v1.46.0
+)
 
-replace go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.43.0 => go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.46.0
+replace (
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.43.0 => go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.46.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.44.0 => go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.46.0
+)
 
-replace go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.43.0 => go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.46.0
+replace (
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.43.0 => go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.46.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.44.0 => go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.46.0
+)
