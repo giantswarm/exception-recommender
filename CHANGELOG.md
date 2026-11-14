@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Regenerate values.schema.json for the strict schema configuration.
+- Use the multi-arch `docker-kubectl` image `1.36.4` (was the amd64-only `1.32.0`) for the CRD install and cleanup hook Jobs, so they also run on arm64 nodes.
 
 ### Fixed
 
