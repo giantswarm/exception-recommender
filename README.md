@@ -57,15 +57,14 @@ spec:
 
 There are several ways to install this app onto a workload cluster.
 
-- [Using GitOps to instantiate the App](https://docs.giantswarm.io/advanced/gitops/apps/)
-- [Using our web interface](https://docs.giantswarm.io/platform-overview/web-interface/app-platform/#installing-an-app).
-- By creating an [App resource](https://docs.giantswarm.io/use-the-api/management-api/crd/apps.application.giantswarm.io/) in the management cluster as explained in [Getting started with App Platform](https://docs.giantswarm.io/getting-started/app-platform/).
+- [Using a Flux HelmRelease](https://docs.giantswarm.io/tutorials/fleet-management/app-platform/deploy-app-helmrelease/) (recommended), for example with `kubectl gs deploy chart`.
+- By creating an [App resource](https://docs.giantswarm.io/reference/platform-api/crd/apps.application.giantswarm.io/) in the management cluster, [directly](https://docs.giantswarm.io/tutorials/fleet-management/app-platform/deploy-app/) or [via GitOps](https://docs.giantswarm.io/tutorials/continuous-deployment/apps/add-appcr/). App Platform is [being deprecated](https://docs.giantswarm.io/overview/fleet-management/app-management/app-platform-deprecation/).
 
 ## Configuring
 
 ### values.yaml
 
-**This is an example of a values file you could upload using our web interface.**
+**This is an example of a values file for this app.**
 
 ```yaml
 recommender:
@@ -73,4 +72,4 @@ recommender:
   destinationNamespace: "default"
 ```
 
-See our [full reference on how to configure apps](https://docs.giantswarm.io/getting-started/app-platform/app-configuration/) for more details.
+See our [full reference on how to configure apps](https://docs.giantswarm.io/tutorials/fleet-management/app-platform/app-configuration/) for more details.
