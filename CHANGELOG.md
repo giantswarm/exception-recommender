@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Run the cleanup hook Job with its own hook ServiceAccount, RBAC and network policy instead of the chart's main ServiceAccount, which does not exist after an install fails in its pre-install hooks. Uninstalling such a release (as Flux does to remediate a failed install) left it stuck in the `uninstalling` state. The Job also succeeds when the `PolicyExceptionDraft` CRD is not installed.
 - The `helm.sh/chart` label is valid for long chart versions: the 63-character cut trims the whole trailing run of `-`, `.` and `_`.
 
 ### Changed
