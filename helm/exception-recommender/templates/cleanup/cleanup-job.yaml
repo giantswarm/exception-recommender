@@ -15,10 +15,11 @@ spec:
   template:
     metadata:
       labels:
+        app.kubernetes.io/component: {{ include "recommender.cleanupJob" . | quote }}
         {{- include "labels.selector" . | nindent 8 }}
     spec:
       restartPolicy: Never
-      serviceAccountName: {{ include "resource.default.name"  . }}
+      serviceAccountName: {{ include "recommender.cleanupJob" . }}
       securityContext:
         seccompProfile:
           type: RuntimeDefault
@@ -37,9 +38,19 @@ spec:
               - |
                 set -o errexit ; set -o xtrace ; set -o nounset
 
+                # Nothing to clean up when the CRD is not installed, e.g. when
+                # an install failed before its crd-install hook ran. Any other
+                # error fails the Job, so it is retried. stderr is not captured,
+                # so warnings cannot be mistaken for the CRD's name.
+                crd="$(kubectl get crd policyexceptiondrafts.policy.giantswarm.io --ignore-not-found -o name)"
+                if [ -z "${crd}" ]; then
+                  echo "policyexceptiondrafts CRD not found, nothing to clean up"
+                  exit 0
+                fi
+
                 # piping stderr to stdout means kubectl's errors are surfaced
                 # in the pod's logs.
-                kubectl delete policyexceptiondrafts -n {{ .Values.recommender.destinationNamespace }} --all 2>&1
+                kubectl delete policyexceptiondrafts -n {{ .Values.recommender.destinationNamespace }} --all --ignore-not-found 2>&1
           resources: {{- toYaml .Values.crds.resources | nindent 12 }}
           securityContext:
             seccompProfile:
